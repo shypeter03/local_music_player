@@ -20,6 +20,24 @@ struct LyricLine {
     let text: String
 }
 
+enum RepeatMode: Int {
+    case off
+    case all
+    case one
+}
+
+struct MusicPlaylist: Codable {
+    let id: String
+    var name: String
+    var trackIDs: [String]
+
+    init(id: String = UUID().uuidString, name: String, trackIDs: [String] = []) {
+        self.id = id
+        self.name = name
+        self.trackIDs = trackIDs
+    }
+}
+
 final class SourceFolder: Codable {
     let id: String
     let name: String
@@ -106,13 +124,16 @@ final class TrackRowView: NSControl {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func configure(track: Track, index: Int, active: Bool) {
+    func configure(track: Track, index: Int, active: Bool, selected: Bool = false, selectionMode: Bool = false) {
         trackID = track.id
-        indexLabel.stringValue = "\(index)"
+        indexLabel.stringValue = selectionMode ? (selected ? "✓" : "") : "\(index)"
         titleLabel.stringValue = track.title
         subtitleLabel.stringValue = "\(track.artist) · \(track.folderURL.lastPathComponent)"
         metaLabel.stringValue = track.ext.uppercased()
-        layer?.backgroundColor = active ? NSColor.systemPink.withAlphaComponent(0.11).cgColor : NSColor.white.withAlphaComponent(0.72).cgColor
+        indexLabel.layer?.borderWidth = selectionMode ? 1 : 0
+        indexLabel.layer?.borderColor = selected ? NSColor.systemPink.cgColor : NSColor.separatorColor.cgColor
+        indexLabel.layer?.backgroundColor = selected ? NSColor.systemPink.withAlphaComponent(0.16).cgColor : NSColor.controlBackgroundColor.cgColor
+        layer?.backgroundColor = (active || selected) ? NSColor.systemPink.withAlphaComponent(0.11).cgColor : NSColor.white.withAlphaComponent(0.72).cgColor
     }
 }
 
@@ -160,7 +181,6 @@ final class FolderRowView: NSView {
     }
 }
 
-@main
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow!
     private let root = NSView()
@@ -168,21 +188,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let content = NSView()
     private let libraryPage = NSView()
     private let foldersPage = NSView()
+    private let playlistsPage = NSView()
     private let playerPage = NSView()
+    private var pageConstraints: [ObjectIdentifier: [NSLayoutConstraint]] = [:]
 
     private let libraryButton = NSButton(title: "音乐列表", target: nil, action: nil)
     private let foldersButton = NSButton(title: "文件夹", target: nil, action: nil)
+    private let playlistsButton = NSButton(title: "播放列表", target: nil, action: nil)
     private let addFolderButton = NSButton(title: "选择文件夹", target: nil, action: nil)
     private let rescanButton = NSButton(title: "重新扫描", target: nil, action: nil)
     private let backButton = NSButton(title: "‹ 返回资料库", target: nil, action: nil)
+    private let selectTracksButton = NSButton(title: "选择", target: nil, action: nil)
+    private let addSelectedButton = NSButton(title: "加入列表", target: nil, action: nil)
 
     private let searchField = NSSearchField()
+    private let folderFilterPopup = NSPopUpButton()
     private let statusLabel = NSTextField(labelWithString: "待播放")
     private let libraryCountLabel = NSTextField(labelWithString: "0 首")
+    private let selectionStatusLabel = NSTextField(labelWithString: "未选择")
     private let folderCountLabel = NSTextField(labelWithString: "0 个")
+    private let playlistCountLabel = NSTextField(labelWithString: "0 个")
+    private let selectedPlaylistTitle = NSTextField(labelWithString: "选择一个播放列表")
+    private let selectedPlaylistCountLabel = NSTextField(labelWithString: "0 首")
     private let trackStack = NSStackView()
     private let recentStack = NSStackView()
     private let folderStack = NSStackView()
+    private let playlistStack = NSStackView()
+    private let playlistTrackStack = NSStackView()
+    private let newPlaylistButton = NSButton(title: "新建列表", target: nil, action: nil)
+    private let deletePlaylistButton = NSButton(title: "删除列表", target: nil, action: nil)
 
     private let miniPlayer = NSView()
     private let miniCover = NSImageView()
@@ -216,8 +250,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let detailPlayButton = NSButton(title: "▶", target: nil, action: nil)
     private let detailPrevButton = NSButton(title: "⏮", target: nil, action: nil)
     private let detailNextButton = NSButton(title: "⏭", target: nil, action: nil)
+    private let shuffleButton = NSButton(title: "", target: nil, action: nil)
+    private let repeatButton = NSButton(title: "", target: nil, action: nil)
+    private let detailShuffleButton = NSButton(title: "", target: nil, action: nil)
+    private let detailRepeatButton = NSButton(title: "", target: nil, action: nil)
 
     private var folders: [SourceFolder] = []
+    private var playlists: [MusicPlaylist] = []
     private var tracks: [Track] = []
     private var filteredTracks: [Track] = []
     private var recentIDs: [String] = UserDefaults.standard.stringArray(forKey: "recentTracks") ?? []
@@ -227,6 +266,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var timer: Timer?
     private var lyrics: [LyricLine] = []
     private var lyricLabels: [NSTextField] = []
+    private var selectedFolderID: String? = UserDefaults.standard.string(forKey: "selectedFolderID")
+    private var selectedPlaylistID: String?
+    private var selectedTrackIDs = Set<String>()
+    private var isSelectingTracks = false
+    private var isShuffleEnabled = UserDefaults.standard.bool(forKey: "shuffleEnabled")
+    private var repeatMode = RepeatMode(rawValue: UserDefaults.standard.integer(forKey: "repeatMode")) ?? .off
+    private var isAdvancingAtEnd = false
+
+    func applicationSupportsSecureRestorableState(
+        _ app: NSApplication
+    ) -> Bool {
+        return true
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -234,17 +286,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         buildSidebar()
         buildLibraryPage()
         buildFoldersPage()
+        buildPlaylistsPage()
         buildPlayerPage()
         bindActions()
         loadFolders()
+        loadPlaylists()
         showPage(libraryPage)
         scanFolders()
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        showMainWindow()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            showMainWindow()
+        }
+        return true
+    }
+
+    private func showMainWindow() {
+        if window == nil {
+            buildWindow()
+        }
+        window.deminiaturize(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
     }
 
     private func buildWindow() {
@@ -303,10 +372,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         configureNavButton(libraryButton, image: "music.note.list")
         configureNavButton(foldersButton, image: "folder")
+        configureNavButton(playlistsButton, image: "music.note.house")
 
         configureMiniPlayer()
 
-        let stack = NSStackView(views: [brand, libraryButton, foldersButton, NSView(), miniPlayer])
+        let stack = NSStackView(views: [brand, libraryButton, foldersButton, playlistsButton, NSView(), miniPlayer])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
@@ -321,6 +391,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             brand.widthAnchor.constraint(equalTo: stack.widthAnchor),
             libraryButton.widthAnchor.constraint(equalTo: stack.widthAnchor),
             foldersButton.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            playlistsButton.widthAnchor.constraint(equalTo: stack.widthAnchor),
             miniPlayer.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ])
     }
@@ -360,12 +431,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         progress.orientation = .horizontal
         progress.alignment = .centerY
         progress.spacing = 8
-        let controls = NSStackView(views: [prevButton, playButton, nextButton])
+        let controls = NSStackView(views: [shuffleButton, prevButton, playButton, nextButton, repeatButton])
         controls.orientation = .horizontal
         controls.alignment = .centerY
         controls.distribution = .gravityAreas
         controls.spacing = 10
-        [prevButton, playButton, nextButton].forEach(configureIconButton)
+        [shuffleButton, prevButton, playButton, nextButton, repeatButton].forEach(configureIconButton)
         playButton.contentTintColor = .systemPink
 
         let stack = NSStackView(views: [top, progress, controls])
@@ -395,9 +466,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let header = makeHeader(eyebrow: "Library", title: "音乐列表")
         searchField.placeholderString = "搜索歌名、艺术家、文件夹"
         searchField.translatesAutoresizingMaskIntoConstraints = false
+        folderFilterPopup.translatesAutoresizingMaskIntoConstraints = false
+        folderFilterPopup.bezelStyle = .rounded
         let refresh = NSButton(title: "刷新扫描", target: self, action: #selector(scanFoldersAction))
         refresh.bezelStyle = .rounded
-        let headerActions = NSStackView(views: [searchField, refresh])
+        let headerActions = NSStackView(views: [folderFilterPopup, searchField, refresh])
         headerActions.orientation = .horizontal
         headerActions.spacing = 10
 
@@ -416,7 +489,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureStack(recentStack)
         recentPanel.addArrangedSubview(recentStack)
 
-        let libraryPanel = makePanel(title: "歌曲", trailing: libraryCountLabel)
+        selectTracksButton.bezelStyle = .rounded
+        addSelectedButton.bezelStyle = .rounded
+        addSelectedButton.contentTintColor = .systemPink
+        selectionStatusLabel.font = .systemFont(ofSize: 12)
+        selectionStatusLabel.textColor = .secondaryLabelColor
+        let libraryTools = NSStackView(views: [selectionStatusLabel, libraryCountLabel, selectTracksButton, addSelectedButton])
+        libraryTools.orientation = .horizontal
+        libraryTools.alignment = .centerY
+        libraryTools.spacing = 10
+        let libraryPanel = makePanel(title: "歌曲", trailing: libraryTools)
         configureStack(trackStack)
         let scroll = scrollView(containing: trackStack)
         libraryPanel.addArrangedSubview(scroll)
@@ -434,6 +516,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             top.leadingAnchor.constraint(equalTo: libraryPage.leadingAnchor, constant: 34),
             top.trailingAnchor.constraint(equalTo: libraryPage.trailingAnchor, constant: -34),
             top.topAnchor.constraint(equalTo: libraryPage.topAnchor, constant: 34),
+            folderFilterPopup.widthAnchor.constraint(equalToConstant: 180),
             searchField.widthAnchor.constraint(equalToConstant: 280),
 
             dashboard.leadingAnchor.constraint(equalTo: top.leadingAnchor),
@@ -543,10 +626,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ])
     }
 
+    private func buildPlaylistsPage() {
+        addPage(playlistsPage)
+
+        let header = makeHeader(eyebrow: "Playlists", title: "播放列表")
+        configurePrimaryButton(newPlaylistButton)
+        deletePlaylistButton.bezelStyle = .rounded
+        deletePlaylistButton.contentTintColor = .systemRed
+        let actions = NSStackView(views: [newPlaylistButton, deletePlaylistButton])
+        actions.orientation = .horizontal
+        actions.spacing = 10
+
+        let top = NSStackView(views: [header, actions])
+        top.orientation = .horizontal
+        top.alignment = .bottom
+        top.distribution = .gravityAreas
+        top.translatesAutoresizingMaskIntoConstraints = false
+
+        let listPanel = makePanel(title: "列表", trailing: playlistCountLabel)
+        configureStack(playlistStack)
+        listPanel.addArrangedSubview(scrollView(containing: playlistStack))
+
+        let titleStack = NSStackView(views: [selectedPlaylistTitle, selectedPlaylistCountLabel])
+        titleStack.orientation = .vertical
+        titleStack.spacing = 2
+        selectedPlaylistTitle.font = .systemFont(ofSize: 16, weight: .bold)
+        selectedPlaylistCountLabel.font = .systemFont(ofSize: 12)
+        selectedPlaylistCountLabel.textColor = .secondaryLabelColor
+        let tracksPanel = makePanel(title: "歌曲", trailing: titleStack)
+        configureStack(playlistTrackStack)
+        tracksPanel.addArrangedSubview(scrollView(containing: playlistTrackStack))
+
+        playlistsPage.addSubview(top)
+        playlistsPage.addSubview(listPanel)
+        playlistsPage.addSubview(tracksPanel)
+
+        NSLayoutConstraint.activate([
+            top.leadingAnchor.constraint(equalTo: playlistsPage.leadingAnchor, constant: 34),
+            top.trailingAnchor.constraint(equalTo: playlistsPage.trailingAnchor, constant: -34),
+            top.topAnchor.constraint(equalTo: playlistsPage.topAnchor, constant: 34),
+
+            listPanel.leadingAnchor.constraint(equalTo: top.leadingAnchor),
+            listPanel.topAnchor.constraint(equalTo: top.bottomAnchor, constant: 24),
+            listPanel.bottomAnchor.constraint(equalTo: playlistsPage.bottomAnchor, constant: -34),
+            listPanel.widthAnchor.constraint(equalTo: playlistsPage.widthAnchor, multiplier: 0.34),
+
+            tracksPanel.leadingAnchor.constraint(equalTo: listPanel.trailingAnchor, constant: 18),
+            tracksPanel.trailingAnchor.constraint(equalTo: top.trailingAnchor),
+            tracksPanel.topAnchor.constraint(equalTo: listPanel.topAnchor),
+            tracksPanel.bottomAnchor.constraint(equalTo: listPanel.bottomAnchor)
+        ])
+    }
+
     private func buildPlayerPage() {
         addPage(playerPage)
         backButton.bezelStyle = .inline
         backButton.contentTintColor = .systemPink
+        backButton.translatesAutoresizingMaskIntoConstraints = false
 
         let albumPanel = NSStackView()
         albumPanel.orientation = .vertical
@@ -574,10 +710,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         detailFolder.alignment = .center
         detailFolder.lineBreakMode = .byTruncatingMiddle
 
-        let controls = NSStackView(views: [detailPrevButton, detailPlayButton, detailNextButton])
+        let controls = NSStackView(views: [detailShuffleButton, detailPrevButton, detailPlayButton, detailNextButton, detailRepeatButton])
         controls.orientation = .horizontal
         controls.spacing = 14
-        [detailPrevButton, detailPlayButton, detailNextButton].forEach(configureIconButton)
+        [detailShuffleButton, detailPrevButton, detailPlayButton, detailNextButton, detailRepeatButton].forEach(configureIconButton)
         detailPlayButton.contentTintColor = .systemPink
 
         [currentTime, durationTime].forEach {
@@ -624,12 +760,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func addPage(_ page: NSView) {
         page.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(page)
-        NSLayoutConstraint.activate([
+        let constraints = [
             page.leadingAnchor.constraint(equalTo: content.leadingAnchor),
             page.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             page.topAnchor.constraint(equalTo: content.topAnchor),
             page.bottomAnchor.constraint(equalTo: content.bottomAnchor)
-        ])
+        ]
+        pageConstraints[ObjectIdentifier(page)] = constraints
+        NSLayoutConstraint.activate(constraints)
     }
 
     private func bindActions() {
@@ -637,14 +775,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         libraryButton.action = #selector(showLibrary)
         foldersButton.target = self
         foldersButton.action = #selector(showFolders)
+        playlistsButton.target = self
+        playlistsButton.action = #selector(showPlaylists)
         addFolderButton.target = self
         addFolderButton.action = #selector(addFolders)
         rescanButton.target = self
         rescanButton.action = #selector(scanFoldersAction)
         backButton.target = self
         backButton.action = #selector(showLibrary)
+        selectTracksButton.target = self
+        selectTracksButton.action = #selector(toggleTrackSelection)
+        addSelectedButton.target = self
+        addSelectedButton.action = #selector(addSelectedTracksToPlaylist)
+        newPlaylistButton.target = self
+        newPlaylistButton.action = #selector(createPlaylist)
+        deletePlaylistButton.target = self
+        deletePlaylistButton.action = #selector(deleteSelectedPlaylist)
         searchField.target = self
         searchField.action = #selector(searchChanged)
+        folderFilterPopup.target = self
+        folderFilterPopup.action = #selector(folderFilterChanged)
         playButton.target = self
         playButton.action = #selector(togglePlay)
         detailPlayButton.target = self
@@ -657,14 +807,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         nextButton.action = #selector(playNext)
         detailNextButton.target = self
         detailNextButton.action = #selector(playNext)
+        shuffleButton.target = self
+        shuffleButton.action = #selector(toggleShuffle)
+        detailShuffleButton.target = self
+        detailShuffleButton.action = #selector(toggleShuffle)
+        repeatButton.target = self
+        repeatButton.action = #selector(cycleRepeatMode)
+        detailRepeatButton.target = self
+        detailRepeatButton.action = #selector(cycleRepeatMode)
         [sideSeek, miniSeek, seekBar].forEach {
             $0.target = self
             $0.action = #selector(seekChanged(_:))
         }
+        updatePlaybackModeButtons()
     }
 
     @objc private func showLibrary() { showPage(libraryPage) }
     @objc private func showFolders() { showPage(foldersPage) }
+    @objc private func showPlaylists() { showPage(playlistsPage) }
     @objc private func openPlayerFromCurrent() {
         if currentTrack == nil, let first = tracks.first {
             play(track: first)
@@ -673,11 +833,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showPage(_ page: NSView) {
-        for view in [libraryPage, foldersPage, playerPage] {
-            view.isHidden = view !== page
+        for view in [libraryPage, foldersPage, playlistsPage, playerPage] {
+            let constraints = pageConstraints[ObjectIdentifier(view)] ?? []
+            if view === page {
+                NSLayoutConstraint.activate(constraints)
+                view.isHidden = false
+            } else {
+                view.isHidden = true
+                NSLayoutConstraint.deactivate(constraints)
+            }
         }
         libraryButton.state = page === libraryPage ? .on : .off
         foldersButton.state = page === foldersPage ? .on : .off
+        playlistsButton.state = page === playlistsPage ? .on : .off
     }
 
     @objc private func addFolders() {
@@ -713,8 +881,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         tracks = nextTracks.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
         saveFolders()
+        if let selectedFolderID, !folders.contains(where: { $0.id == selectedFolderID }) {
+            self.selectedFolderID = nil
+            UserDefaults.standard.removeObject(forKey: "selectedFolderID")
+        }
+        renderFolderFilter()
         applySearch()
         renderFolders()
+        renderPlaylists()
         statusLabel.stringValue = tracks.isEmpty ? "没有扫描到音乐" : "已载入 \(tracks.count) 首"
     }
 
@@ -773,12 +947,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applySearch()
     }
 
+    @objc private func folderFilterChanged() {
+        selectedFolderID = folderFilterPopup.selectedItem?.representedObject as? String
+        if let selectedFolderID {
+            UserDefaults.standard.set(selectedFolderID, forKey: "selectedFolderID")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "selectedFolderID")
+        }
+        applySearch()
+    }
+
     private func applySearch() {
         let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if query.isEmpty {
-            filteredTracks = tracks
+        let scopedTracks: [Track]
+        if let selectedFolderID {
+            scopedTracks = tracks.filter { $0.id.hasPrefix("\(selectedFolderID):") }
         } else {
-            filteredTracks = tracks.filter {
+            scopedTracks = tracks
+        }
+
+        if query.isEmpty {
+            filteredTracks = scopedTracks
+        } else {
+            filteredTracks = scopedTracks.filter {
                 "\($0.title) \($0.artist) \($0.folderURL.lastPathComponent) \($0.url.lastPathComponent)".lowercased().contains(query)
             }
         }
@@ -788,6 +979,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func renderTracks() {
         libraryCountLabel.stringValue = "\(filteredTracks.count) 首"
+        updateSelectionControls()
         clear(trackStack)
         if filteredTracks.isEmpty {
             trackStack.addArrangedSubview(emptyLabel("还没有音乐。前往“文件夹”页面选择本地或 iCloud 文件夹。"))
@@ -795,7 +987,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         for (index, track) in filteredTracks.enumerated() {
             let row = TrackRowView()
-            row.configure(track: track, index: index + 1, active: track.id == currentTrack?.id)
+            row.configure(
+                track: track,
+                index: index + 1,
+                active: track.id == currentTrack?.id,
+                selected: selectedTrackIDs.contains(track.id),
+                selectionMode: isSelectingTracks
+            )
             row.target = self
             row.action = #selector(trackRowClicked(_:))
             trackStack.addArrangedSubview(row)
@@ -820,6 +1018,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func renderFolders() {
         folderCountLabel.stringValue = "\(folders.count) 个"
+        renderFolderFilter()
         clear(folderStack)
         if folders.isEmpty {
             folderStack.addArrangedSubview(emptyLabel("尚未添加文件夹，可一次选择多个本地和 iCloud 文件夹。"))
@@ -834,17 +1033,215 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func renderPlaylists() {
+        playlistCountLabel.stringValue = "\(playlists.count) 个"
+        clear(playlistStack)
+        if playlists.isEmpty {
+            playlistStack.addArrangedSubview(emptyLabel("还没有播放列表。点击“新建列表”创建一个。"))
+        } else {
+            for playlist in playlists {
+                let row = NSButton(title: "\(playlist.name) · \(playlist.trackIDs.count) 首", target: self, action: #selector(playlistClicked(_:)))
+                row.bezelStyle = .regularSquare
+                row.isBordered = false
+                row.alignment = .left
+                row.font = .systemFont(ofSize: 14, weight: playlist.id == selectedPlaylistID ? .bold : .regular)
+                row.contentTintColor = playlist.id == selectedPlaylistID ? .systemPink : .labelColor
+                row.identifier = NSUserInterfaceItemIdentifier(playlist.id)
+                row.translatesAutoresizingMaskIntoConstraints = false
+                row.heightAnchor.constraint(equalToConstant: 44).isActive = true
+                playlistStack.addArrangedSubview(row)
+            }
+        }
+        renderSelectedPlaylistTracks()
+    }
+
+    private func renderSelectedPlaylistTracks() {
+        clear(playlistTrackStack)
+        guard let playlist = selectedPlaylist() else {
+            selectedPlaylistTitle.stringValue = "选择一个播放列表"
+            selectedPlaylistCountLabel.stringValue = "0 首"
+            playlistTrackStack.addArrangedSubview(emptyLabel("在左侧选择一个播放列表查看歌曲。"))
+            deletePlaylistButton.isEnabled = false
+            return
+        }
+
+        deletePlaylistButton.isEnabled = true
+        let playlistTracks = playlist.trackIDs.compactMap { id in tracks.first(where: { $0.id == id }) }
+        selectedPlaylistTitle.stringValue = playlist.name
+        selectedPlaylistCountLabel.stringValue = "\(playlistTracks.count) 首"
+        if playlistTracks.isEmpty {
+            playlistTrackStack.addArrangedSubview(emptyLabel("这个播放列表还没有可用歌曲。可在音乐列表中选择歌曲加入。"))
+            return
+        }
+
+        for (index, track) in playlistTracks.enumerated() {
+            let row = TrackRowView()
+            row.configure(track: track, index: index + 1, active: track.id == currentTrack?.id)
+            row.target = self
+            row.action = #selector(trackRowClicked(_:))
+            playlistTrackStack.addArrangedSubview(row)
+        }
+    }
+
+    private func renderFolderFilter() {
+        let currentSelection = selectedFolderID
+        folderFilterPopup.removeAllItems()
+        folderFilterPopup.addItem(withTitle: "全部文件夹")
+        folderFilterPopup.item(at: 0)?.representedObject = nil
+
+        for folder in folders {
+            folderFilterPopup.addItem(withTitle: folder.name)
+            folderFilterPopup.lastItem?.representedObject = folder.id
+        }
+
+        if let currentSelection,
+           folders.contains(where: { $0.id == currentSelection }),
+           let index = folderFilterPopup.itemArray.firstIndex(where: { ($0.representedObject as? String) == currentSelection }) {
+            folderFilterPopup.selectItem(at: index)
+            selectedFolderID = currentSelection
+        } else {
+            folderFilterPopup.selectItem(at: 0)
+            selectedFolderID = nil
+        }
+    }
+
+    private func selectedPlaylist() -> MusicPlaylist? {
+        guard let selectedPlaylistID else { return nil }
+        return playlists.first { $0.id == selectedPlaylistID }
+    }
+
+    private func updateSelectionControls() {
+        selectTracksButton.title = isSelectingTracks ? "完成" : "选择"
+        selectionStatusLabel.stringValue = isSelectingTracks ? "已选择 \(selectedTrackIDs.count) 首" : "未选择"
+        addSelectedButton.isEnabled = isSelectingTracks && !selectedTrackIDs.isEmpty
+    }
+
     @objc private func removeFolder(_ sender: NSButton) {
         guard let id = sender.identifier?.rawValue else { return }
         folders.removeAll { $0.id == id }
-        tracks.removeAll { $0.folderURL.path == id }
+        tracks.removeAll { $0.id.hasPrefix("\(id):") }
+        if selectedFolderID == id {
+            selectedFolderID = nil
+            UserDefaults.standard.removeObject(forKey: "selectedFolderID")
+        }
         saveFolders()
         scanFolders()
     }
 
     @objc private func trackRowClicked(_ sender: TrackRowView) {
         guard let track = tracks.first(where: { $0.id == sender.trackID }) else { return }
+        if isSelectingTracks {
+            if selectedTrackIDs.contains(track.id) {
+                selectedTrackIDs.remove(track.id)
+            } else {
+                selectedTrackIDs.insert(track.id)
+            }
+            renderTracks()
+            return
+        }
         play(track: track)
+    }
+
+    @objc private func toggleTrackSelection() {
+        isSelectingTracks.toggle()
+        if !isSelectingTracks {
+            selectedTrackIDs.removeAll()
+        }
+        renderTracks()
+    }
+
+    @objc private func addSelectedTracksToPlaylist() {
+        guard !selectedTrackIDs.isEmpty else { return }
+        if playlists.isEmpty {
+            guard let playlist = promptForPlaylistName() else { return }
+            playlists.append(playlist)
+            selectedPlaylistID = playlist.id
+        }
+
+        guard let playlistID = choosePlaylistIDForAdding() else { return }
+        guard let index = playlists.firstIndex(where: { $0.id == playlistID }) else { return }
+        let orderedSelection = filteredTracks.map(\.id).filter { selectedTrackIDs.contains($0) }
+        for id in orderedSelection where !playlists[index].trackIDs.contains(id) {
+            playlists[index].trackIDs.append(id)
+        }
+        selectedPlaylistID = playlists[index].id
+        savePlaylists()
+        selectedTrackIDs.removeAll()
+        isSelectingTracks = false
+        renderTracks()
+        renderPlaylists()
+        showPage(playlistsPage)
+    }
+
+    @objc private func createPlaylist() {
+        guard let playlist = promptForPlaylistName() else { return }
+        playlists.append(playlist)
+        selectedPlaylistID = playlist.id
+        savePlaylists()
+        renderPlaylists()
+        showPage(playlistsPage)
+    }
+
+    @objc private func deleteSelectedPlaylist() {
+        guard let selectedPlaylistID,
+              let index = playlists.firstIndex(where: { $0.id == selectedPlaylistID })
+        else { return }
+        let alert = NSAlert()
+        alert.messageText = "删除播放列表？"
+        alert.informativeText = "不会删除原始音乐文件，只会移除这个列表。"
+        alert.addButton(withTitle: "删除")
+        alert.addButton(withTitle: "取消")
+        alert.alertStyle = .warning
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        playlists.remove(at: index)
+        self.selectedPlaylistID = playlists.first?.id
+        savePlaylists()
+        renderPlaylists()
+    }
+
+    @objc private func playlistClicked(_ sender: NSButton) {
+        selectedPlaylistID = sender.identifier?.rawValue
+        renderPlaylists()
+    }
+
+    private func promptForPlaylistName() -> MusicPlaylist? {
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.placeholderString = "例如：通勤、收藏、练习"
+        let alert = NSAlert()
+        alert.messageText = "新建播放列表"
+        alert.informativeText = "输入一个列表名称。"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "创建")
+        alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return nil }
+        return MusicPlaylist(name: name)
+    }
+
+    private func choosePlaylistIDForAdding() -> String? {
+        if playlists.count == 1 {
+            return playlists[0].id
+        }
+
+        let popup = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 280, height: 28))
+        for playlist in playlists {
+            popup.addItem(withTitle: playlist.name)
+            popup.lastItem?.representedObject = playlist.id
+        }
+        if let selectedPlaylistID,
+           let index = popup.itemArray.firstIndex(where: { ($0.representedObject as? String) == selectedPlaylistID }) {
+            popup.selectItem(at: index)
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "加入播放列表"
+        alert.informativeText = "选择要加入的列表。"
+        alert.accessoryView = popup
+        alert.addButton(withTitle: "加入")
+        alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        return popup.selectedItem?.representedObject as? String
     }
 
     private func play(track: Track) {
@@ -854,6 +1251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             audioPlayer?.play()
             currentTrack = track
             currentIndex = tracks.firstIndex(where: { $0.id == track.id }) ?? -1
+            isAdvancingAtEnd = false
             addRecent(track.id)
             loadLyrics(for: track)
             updateCurrentUI()
@@ -879,15 +1277,91 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func playPrevious() { playByOffset(-1) }
     @objc private func playNext() { playByOffset(1) }
 
+    @objc private func toggleShuffle() {
+        isShuffleEnabled.toggle()
+        UserDefaults.standard.set(isShuffleEnabled, forKey: "shuffleEnabled")
+        updatePlaybackModeButtons()
+    }
+
+    @objc private func cycleRepeatMode() {
+        switch repeatMode {
+        case .off:
+            repeatMode = .all
+        case .all:
+            repeatMode = .one
+        case .one:
+            repeatMode = .off
+        }
+        UserDefaults.standard.set(repeatMode.rawValue, forKey: "repeatMode")
+        updatePlaybackModeButtons()
+    }
+
     private func playByOffset(_ offset: Int) {
-        guard !tracks.isEmpty else { return }
-        let base = currentIndex >= 0 ? currentIndex : 0
-        let next = (base + offset + tracks.count) % tracks.count
-        play(track: tracks[next])
+        guard let next = nextTrack(offset: offset, allowStopAtEnd: false) else { return }
+        play(track: next)
+    }
+
+    private func nextTrack(offset: Int, allowStopAtEnd: Bool) -> Track? {
+        let queue = playbackQueue()
+        guard !queue.isEmpty else { return nil }
+
+        if isShuffleEnabled, queue.count > 1 {
+            var candidates = queue
+            if let currentTrack {
+                candidates.removeAll { $0.id == currentTrack.id }
+            }
+            return candidates.randomElement() ?? queue.randomElement()
+        }
+
+        let base = currentTrack.flatMap { track in queue.firstIndex(where: { $0.id == track.id }) } ?? (offset > 0 ? -1 : 0)
+        let proposed = base + offset
+        if allowStopAtEnd, repeatMode == .off, (proposed < 0 || proposed >= queue.count) {
+            return nil
+        }
+        return queue[(proposed + queue.count) % queue.count]
+    }
+
+    private func playbackQueue() -> [Track] {
+        if !playlistsPage.isHidden, let playlist = selectedPlaylist() {
+            let playlistTracks = playlist.trackIDs.compactMap { id in tracks.first(where: { $0.id == id }) }
+            if !playlistTracks.isEmpty {
+                return playlistTracks
+            }
+        }
+        if !filteredTracks.isEmpty {
+            return filteredTracks
+        }
+        if let selectedFolderID {
+            return tracks.filter { $0.id.hasPrefix("\(selectedFolderID):") }
+        }
+        return tracks
+    }
+
+    private func advanceAfterTrackEnded() {
+        guard !isAdvancingAtEnd else { return }
+        isAdvancingAtEnd = true
+
+        if repeatMode == .one, let player = audioPlayer {
+            player.currentTime = 0
+            player.play()
+            isAdvancingAtEnd = false
+            updateProgress()
+            return
+        }
+
+        guard let next = nextTrack(offset: 1, allowStopAtEnd: true) else {
+            audioPlayer?.currentTime = 0
+            updatePlayButtons()
+            updateProgress()
+            isAdvancingAtEnd = false
+            return
+        }
+        play(track: next)
     }
 
     @objc private func seekChanged(_ sender: NSSlider) {
         guard let player = audioPlayer, player.duration > 0 else { return }
+        isAdvancingAtEnd = false
         player.currentTime = (sender.doubleValue / 100) * player.duration
         updateProgress()
     }
@@ -921,12 +1395,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateProgress()
         renderTracks()
         renderRecent()
+        renderSelectedPlaylistTracks()
     }
 
     private func updatePlayButtons() {
         let title = audioPlayer?.isPlaying == true ? "⏸" : "▶"
         playButton.title = title
         detailPlayButton.title = title
+    }
+
+    private func updatePlaybackModeButtons() {
+        [shuffleButton, detailShuffleButton].forEach {
+            $0.image = symbolImage("shuffle", pointSize: 15, color: isShuffleEnabled ? .systemPink : .secondaryLabelColor)
+            $0.toolTip = isShuffleEnabled ? "随机播放已开启" : "随机播放"
+            $0.contentTintColor = isShuffleEnabled ? .systemPink : .secondaryLabelColor
+        }
+
+        let repeatSymbol = repeatMode == .one ? "repeat.1" : "repeat"
+        let repeatColor: NSColor = repeatMode == .off ? .secondaryLabelColor : .systemPink
+        let repeatTip: String
+        switch repeatMode {
+        case .off:
+            repeatTip = "循环关闭"
+        case .all:
+            repeatTip = "列表循环"
+        case .one:
+            repeatTip = "单曲循环"
+        }
+        [repeatButton, detailRepeatButton].forEach {
+            $0.image = symbolImage(repeatSymbol, pointSize: 15, color: repeatColor)
+            $0.toolTip = repeatTip
+            $0.contentTintColor = repeatColor
+        }
     }
 
     private func startTimer() {
@@ -951,7 +1451,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         [durationTime, miniDuration, sideDuration].forEach { $0.stringValue = formatTime(player.duration) }
         highlightLyric(at: player.currentTime)
         if !player.isPlaying, player.currentTime >= player.duration, player.duration > 0 {
-            playNext()
+            advanceAfterTrackEnded()
         }
     }
 
@@ -1036,6 +1536,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func saveFolders() {
         if let data = try? JSONEncoder().encode(folders) {
             UserDefaults.standard.set(data, forKey: "folders")
+        }
+    }
+
+    private func loadPlaylists() {
+        guard let data = UserDefaults.standard.data(forKey: "playlists"),
+              let decoded = try? JSONDecoder().decode([MusicPlaylist].self, from: data)
+        else {
+            renderPlaylists()
+            return
+        }
+        playlists = decoded
+        selectedPlaylistID = playlists.first?.id
+        renderPlaylists()
+    }
+
+    private func savePlaylists() {
+        if let data = try? JSONEncoder().encode(playlists) {
+            UserDefaults.standard.set(data, forKey: "playlists")
         }
     }
 
@@ -1182,6 +1700,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard seconds.isFinite else { return "0:00" }
         let total = max(0, Int(seconds))
         return "\(total / 60):\(String(format: "%02d", total % 60))"
+    }
+}
+
+@main
+enum LocalMusicPlayerApp {
+    private static var appDelegate: AppDelegate?
+
+    static func main() {
+        let app = NSApplication.shared
+        appDelegate = AppDelegate()
+        app.delegate = appDelegate
+        app.run()
     }
 }
 

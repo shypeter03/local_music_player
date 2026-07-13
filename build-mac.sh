@@ -9,7 +9,7 @@ CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 MODULE_CACHE_DIR="$BUILD_DIR/ModuleCache"
 
-rm -rf "$APP_DIR"
+rm -rf "$APP_DIR" "$MODULE_CACHE_DIR"
 mkdir -p "$MACOS_DIR" "$MODULE_CACHE_DIR"
 
 swiftc \
@@ -21,7 +21,7 @@ swiftc \
   -framework AppKit \
   -framework AVFoundation
 
-cat > "$CONTENTS_DIR/Info.plist" <<'PLIST'
+cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
