@@ -8,18 +8,25 @@ APP_DIR="$BUILD_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 MODULE_CACHE_DIR="$BUILD_DIR/ModuleCache"
+SOURCE_DIR="$ROOT_DIR/MacMusicPlayer"
 
 rm -rf "$APP_DIR" "$MODULE_CACHE_DIR"
 mkdir -p "$MACOS_DIR" "$MODULE_CACHE_DIR"
 
+SOURCES=()
+while IFS= read -r file; do
+  SOURCES+=("$file")
+done < <(find "$SOURCE_DIR" -name "*.swift" | sort)
+
 swiftc \
-  "$ROOT_DIR/MacMusicPlayer/main.swift" \
+  "${SOURCES[@]}" \
   -o "$MACOS_DIR/$APP_NAME" \
   -parse-as-library \
   -target arm64-apple-macosx13.0 \
   -Xcc -fmodules-cache-path="$MODULE_CACHE_DIR" \
   -framework AppKit \
-  -framework AVFoundation
+  -framework AVFoundation \
+  -framework CryptoKit
 
 cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
