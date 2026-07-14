@@ -13,6 +13,8 @@ struct Track {
     let ext: String
     let artworkURL: URL?
     let lyricURL: URL?
+
+    let embeddedArtwork: NSImage?
 }
 
 struct LyricLine {
@@ -65,25 +67,33 @@ final class SourceFolder: Codable {
 }
 
 final class TrackRowView: NSControl {
-    private let indexLabel = NSTextField(labelWithString: "")
+    // private let indexLabel = NSTextField(labelWithString: "")
     private let titleLabel = NSTextField(labelWithString: "")
     private let subtitleLabel = NSTextField(labelWithString: "")
     private let metaLabel = NSTextField(labelWithString: "")
+
+    private let coverView = NSImageView()
+
     var trackID: String = ""
 
+    override func mouseDown(with event: NSEvent) {
+        sendAction(action, to: target)
+    }
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.cornerRadius = 8
-        layer?.backgroundColor = NSColor.white.withAlphaComponent(0.72).cgColor
-        translatesAutoresizingMaskIntoConstraints = false
 
-        indexLabel.alignment = .center
-        indexLabel.font = .systemFont(ofSize: 12, weight: .medium)
-        indexLabel.textColor = .secondaryLabelColor
-        indexLabel.wantsLayer = true
-        indexLabel.layer?.cornerRadius = 7
-        indexLabel.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+
+        coverView.wantsLayer = true
+        coverView.layer?.cornerRadius = 6
+        coverView.layer?.masksToBounds = true
+        coverView.imageScaling = .scaleAxesIndependently
+        coverView.translatesAutoresizingMaskIntoConstraints = false
+
+
+        layer?.backgroundColor = NSColor.systemPink.withAlphaComponent(0.10).cgColor
+        translatesAutoresizingMaskIntoConstraints = false
 
         titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
         titleLabel.lineBreakMode = .byTruncatingTail
@@ -98,20 +108,22 @@ final class TrackRowView: NSControl {
         textStack.spacing = 2
         textStack.translatesAutoresizingMaskIntoConstraints = false
 
-        addSubview(indexLabel)
+        addSubview(coverView)
+        // addSubview(indexLabel)
         addSubview(textStack)
         addSubview(metaLabel)
 
-        [indexLabel, metaLabel].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
+        [coverView, metaLabel].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
 
         NSLayoutConstraint.activate([
             heightAnchor.constraint(equalToConstant: 58),
-            indexLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
-            indexLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
-            indexLabel.widthAnchor.constraint(equalToConstant: 34),
-            indexLabel.heightAnchor.constraint(equalToConstant: 34),
 
-            textStack.leadingAnchor.constraint(equalTo: indexLabel.trailingAnchor, constant: 12),
+            coverView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            coverView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            coverView.widthAnchor.constraint(equalToConstant: 38),
+            coverView.heightAnchor.constraint(equalToConstant: 38),
+
+            textStack.leadingAnchor.constraint(equalTo: coverView.trailingAnchor, constant: 12),
             textStack.centerYAnchor.constraint(equalTo: centerYAnchor),
             textStack.trailingAnchor.constraint(lessThanOrEqualTo: metaLabel.leadingAnchor, constant: -12),
 
@@ -126,13 +138,20 @@ final class TrackRowView: NSControl {
 
     func configure(track: Track, index: Int, active: Bool, selected: Bool = false, selectionMode: Bool = false) {
         trackID = track.id
-        indexLabel.stringValue = selectionMode ? (selected ? "✓" : "") : "\(index)"
+        // indexLabel.stringValue = selectionMode ? (selected ? "✓" : "") : "\(index)"
         titleLabel.stringValue = track.title
         subtitleLabel.stringValue = "\(track.artist) · \(track.folderURL.lastPathComponent)"
         metaLabel.stringValue = track.ext.uppercased()
-        indexLabel.layer?.borderWidth = selectionMode ? 1 : 0
-        indexLabel.layer?.borderColor = selected ? NSColor.systemPink.cgColor : NSColor.separatorColor.cgColor
-        indexLabel.layer?.backgroundColor = selected ? NSColor.systemPink.withAlphaComponent(0.16).cgColor : NSColor.controlBackgroundColor.cgColor
+
+        coverView.image =
+        track.embeddedArtwork
+        ?? track.artworkURL.flatMap {
+            NSImage(contentsOf:$0)
+        }
+        ?? NSImage(
+                systemSymbolName:"music.note",
+                accessibilityDescription:nil
+                )
         layer?.backgroundColor = (active || selected) ? NSColor.systemPink.withAlphaComponent(0.11).cgColor : NSColor.white.withAlphaComponent(0.72).cgColor
     }
 }
@@ -144,7 +163,7 @@ final class FolderRowView: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = 8
-        layer?.backgroundColor = NSColor.white.withAlphaComponent(0.75).cgColor
+        layer?.backgroundColor = NSColor.systemPink.withAlphaComponent(0.10).cgColor
         translatesAutoresizingMaskIntoConstraints = false
 
         let nameLabel = NSTextField(labelWithString: folder.name)
@@ -399,7 +418,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func configureMiniPlayer() {
         miniPlayer.wantsLayer = true
         miniPlayer.layer?.cornerRadius = 10
-        miniPlayer.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.9).cgColor
+        miniPlayer.layer?.backgroundColor = NSColor.systemPink.withAlphaComponent(0.10).cgColor
         miniPlayer.translatesAutoresizingMaskIntoConstraints = false
 
         miniCover.image = placeholderArtwork(size: 58)
@@ -534,7 +553,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func configureNowCard() {
         nowCard.wantsLayer = true
         nowCard.layer?.cornerRadius = 10
-        nowCard.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.6).cgColor
+        nowCard.layer?.backgroundColor = NSColor.systemPink.cgColor
         nowCover.image = placeholderArtwork(size: 112)
         nowCover.imageScaling = .scaleAxesIndependently
         nowCover.wantsLayer = true
@@ -690,7 +709,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         albumPanel.spacing = 18
         albumPanel.wantsLayer = true
         albumPanel.layer?.cornerRadius = 12
-        albumPanel.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.86).cgColor
+        albumPanel.layer?.backgroundColor = NSColor.systemPink.cgColor
         albumPanel.translatesAutoresizingMaskIntoConstraints = false
 
         detailCover.image = placeholderArtwork(size: 360)
@@ -930,17 +949,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 artist: parsed.artist,
                 ext: fileURL.pathExtension,
                 artworkURL: imageByBase[base] ?? coverByFolder[folderPath],
-                lyricURL: lyricByBase[base]
+                lyricURL: lyricByBase[base],
+
+                embeddedArtwork: loadEmbeddedArtwork(fileURL)
             )
         }
     }
 
     private func parseName(_ name: String) -> (artist: String, title: String) {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+
         let parts = name.components(separatedBy: " - ")
+        print("Paringing name: \(name),parts:\(parts)")
         if parts.count >= 2 {
-            return (parts[0], parts.dropFirst().joined(separator: " - "))
+            let artist = parts[0]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                let title = parts.dropFirst()
+                .joined(separator: " - ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                return (artist, title)
         }
-        return ("未知艺术家", name)
+        return ("未知艺术家", cleanName)
     }
 
     @objc private func searchChanged() {
@@ -1129,6 +1160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func trackRowClicked(_ sender: TrackRowView) {
+        print("clicked:", sender.trackID)
         guard let track = tracks.first(where: { $0.id == sender.trackID }) else { return }
         if isSelectingTracks {
             if selectedTrackIDs.contains(track.id) {
@@ -1520,9 +1552,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func artwork(for track: Track) -> NSImage {
-        if let artworkURL = track.artworkURL, let image = NSImage(contentsOf: artworkURL) {
+        // 第一优先：文件内部封面
+        if let image = track.embeddedArtwork {
             return image
         }
+
+        // 第二优先：同名图片
+        if let artworkURL = track.artworkURL,
+            let image = NSImage(contentsOf: artworkURL) {
+                return image
+            }
+        // if let artworkURL = track.artworkURL, let image = NSImage(contentsOf: artworkURL) {
+        //     return image
+        // }
         return placeholderArtwork(size: 360)
     }
 
@@ -1617,7 +1659,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stack.edgeInsets = NSEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
         stack.wantsLayer = true
         stack.layer?.cornerRadius = 12
-        stack.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.84).cgColor
+        stack.layer?.backgroundColor = NSColor.systemPink.withAlphaComponent(0.10).cgColor
         stack.translatesAutoresizingMaskIntoConstraints = false
         return stack
     }
@@ -1630,7 +1672,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func scrollView(containing stack: NSStackView) -> NSScrollView {
-        let document = NSView()
+        let document = FlippedView()
         document.translatesAutoresizingMaskIntoConstraints = false
         document.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -1701,6 +1743,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let total = max(0, Int(seconds))
         return "\(total / 60):\(String(format: "%02d", total % 60))"
     }
+
+    private func loadEmbeddedArtwork(_ url: URL) -> NSImage? {
+
+        let asset = AVAsset(url: url)
+
+        for item in asset.commonMetadata {
+
+            if item.commonKey == .commonKeyArtwork {
+
+                if let data = item.value as? Data {
+                    return NSImage(data: data)
+                }
+
+                if let data = item.dataValue {
+                    return NSImage(data: data)
+                }
+            }
+        }
+
+        return nil
+    }
 }
 
 @main
@@ -1729,5 +1792,11 @@ private extension NSImage {
 private extension Array {
     subscript(safe index: Index) -> Element? {
         indices.contains(index) ? self[index] : nil
+    }
+}
+
+final class FlippedView: NSView {
+    override var isFlipped: Bool {
+        true
     }
 }
