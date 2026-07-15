@@ -135,7 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         buildPlayerPage()
         bindActions()
         configureAppearance()
-        // observeAppearanceChanges()
+        observeAppearanceChanges()
         loadFolders()
         loadPlaylists()
         showPage(libraryPage)
@@ -163,18 +163,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
-    // private func observeAppearanceChanges() {
-    //     NotificationCenter.default.addObserver(
-    //             self,
-    //             selector: #selector(appearanceDidChange),
-    //             name: NSApplication.didChangeEffectiveAppearanceNotification,
-    //             object: nil
-    //             )
-    // }
+    private func observeAppearanceChanges() {
+        NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(appearanceDidChange),
+                name: NSNotification.Name("AppleInterfaceThemeChangedNotification"), // 👈 监听 macOS 核心主题切换
+                object: nil
+                )
+    }
 
-    // @objc private func appearanceDidChange() {
-    //     applyTheme()
-    // }
+    @objc private func appearanceDidChange() {
+        applyTheme()
+    }
 
     func applyTheme() {
         root.applyBackground(Theme.windowBackground)

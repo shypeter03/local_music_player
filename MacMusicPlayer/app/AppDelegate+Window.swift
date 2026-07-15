@@ -4,12 +4,17 @@ extension AppDelegate {
 
     func buildWindow() {
         window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1180, height: 760),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "本地音乐器"
+                contentRect: NSRect(x: 0, y: 0, width: 1180, height: 760),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                backing: .buffered,
+                defer: false
+            )
+        window.titlebarAppearsTransparent = true
+
+        window.titleVisibility = .hidden
+
+        window.styleMask.insert(.fullSizeContentView)
+
         window.center()
         window.minSize = NSSize(width: 920, height: 620)
         buildApplicationMenu()
