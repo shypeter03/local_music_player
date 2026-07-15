@@ -4,7 +4,8 @@ enum Theme {
 
     // MARK: - Accent
 
-    static let accent = NSColor.systemBlue
+    /// 石榴红：用于品牌和主要操作。
+    static let accent = NSColor(calibratedRed: 0.73, green: 0.10, blue: 0.18, alpha: 1)
     static let accentText = NSColor.white
 
     // MARK: - Background

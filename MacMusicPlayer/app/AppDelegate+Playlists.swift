@@ -31,6 +31,7 @@ extension AppDelegate {
             selectedPlaylistCountLabel.stringValue = "0 首"
             playlistTrackStack.addArrangedSubview(UIHelpers.emptyLabel("在左侧选择一个播放列表查看歌曲。"))
             deletePlaylistButton.isEnabled = false
+            updatePlaylistSelectionControls()
             return
         }
 
@@ -39,6 +40,7 @@ extension AppDelegate {
             .compactMap { id in tracks.first(where: { $0.id == id }) }
         selectedPlaylistTitle.stringValue = playlist.name
         selectedPlaylistCountLabel.stringValue = "\(playlistTracks.count) 首"
+        updatePlaylistSelectionControls()
         if playlistTracks.isEmpty {
             playlistTrackStack.addArrangedSubview(UIHelpers.emptyLabel("这个播放列表还没有可用歌曲。可在音乐列表中选择歌曲加入。"))
             return
@@ -46,7 +48,13 @@ extension AppDelegate {
 
         for (index, track) in playlistTracks.enumerated() {
             let row = TrackRowView()
-            row.configure(track: track, index: index + 1, active: track.id == currentTrack?.id)
+            row.configure(
+                track: track,
+                index: index + 1,
+                active: track.id == currentTrack?.id,
+                selected: selectedPlaylistTrackIDs.contains(track.id),
+                selectionMode: isSelectingPlaylistTracks
+            )
             row.target = self
             row.action = #selector(trackRowClicked(_:))
             playlistTrackStack.addArrangedSubview(row)
@@ -107,7 +115,50 @@ extension AppDelegate {
 
     @objc func playlistClicked(_ sender: NSButton) {
         selectedPlaylistID = sender.identifier?.rawValue
+        selectedPlaylistTrackIDs.removeAll()
+        isSelectingPlaylistTracks = false
         renderPlaylists()
+    }
+
+    @objc func playbackOrderChanged() {
+        isShuffleEnabled = playbackOrderPopup.indexOfSelectedItem == 1
+        UserDefaults.standard.set(isShuffleEnabled, forKey: "shuffleEnabled")
+        reorderPendingQueue()
+        updatePlaybackModeButtons()
+    }
+
+    @objc func playSelectedPlaylist() {
+        guard let playlist = selectedPlaylist() else { return }
+        let playlistTracks = PlaylistHelpers.deduplicatedTrackIDs(playlist.trackIDs, tracks: tracks)
+            .compactMap { id in tracks.first(where: { $0.id == id }) }
+        guard let first = playlistTracks.first else { return }
+        resetPlaybackQueue(with: playlistTracks, startingAt: first)
+        play(track: first, resetQueue: false)
+        showPage(playerPage)
+    }
+
+    @objc func togglePlaylistTrackSelection() {
+        isSelectingPlaylistTracks.toggle()
+        if !isSelectingPlaylistTracks { selectedPlaylistTrackIDs.removeAll() }
+        renderSelectedPlaylistTracks()
+    }
+
+    @objc func removeSelectedPlaylistTracks() {
+        guard let playlistID = selectedPlaylistID,
+              let index = playlists.firstIndex(where: { $0.id == playlistID }),
+              !selectedPlaylistTrackIDs.isEmpty
+        else { return }
+        playlists[index].trackIDs.removeAll { selectedPlaylistTrackIDs.contains($0) }
+        selectedPlaylistTrackIDs.removeAll()
+        isSelectingPlaylistTracks = false
+        savePlaylists()
+        renderPlaylists()
+    }
+
+    func updatePlaylistSelectionControls() {
+        selectPlaylistTracksButton.title = isSelectingPlaylistTracks ? "完成" : "选择"
+        playlistSelectionStatusLabel.stringValue = isSelectingPlaylistTracks ? "已选择 \(selectedPlaylistTrackIDs.count) 首" : "未选择"
+        removeSelectedPlaylistTracksButton.isEnabled = isSelectingPlaylistTracks && !selectedPlaylistTrackIDs.isEmpty
     }
 
     func promptForPlaylistName() -> MusicPlaylist? {

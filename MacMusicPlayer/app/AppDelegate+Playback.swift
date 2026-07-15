@@ -3,13 +3,16 @@ import AVFoundation
 
 extension AppDelegate {
 
-    func play(track: Track) {
+    func play(track: Track, resetQueue: Bool = true) {
         do {
+            if resetQueue {
+                resetPlaybackQueue(with: filteredTracks.isEmpty ? tracks : filteredTracks, startingAt: track)
+            }
             audioPlayer = try AVAudioPlayer(contentsOf: track.url)
             audioPlayer?.prepareToPlay()
             audioPlayer?.play()
             currentTrack = track
-            currentIndex = tracks.firstIndex(where: { $0.id == track.id }) ?? -1
+            currentIndex = playbackQueue.firstIndex(where: { $0.id == track.id }) ?? -1
             isAdvancingAtEnd = false
             addRecent(track.id)
             loadLyrics(for: track)
@@ -22,7 +25,7 @@ extension AppDelegate {
 
     @objc func togglePlay() {
         if audioPlayer == nil, let first = tracks.first {
-            play(track: first)
+            play(track: first, resetQueue: true)
             return
         }
         if audioPlayer?.isPlaying == true {
@@ -33,12 +36,19 @@ extension AppDelegate {
         updatePlayButtons()
     }
 
-    @objc func playPrevious() { playByOffset(-1) }
+    @objc func playPrevious() {
+        guard let previous = playbackHistory.popLast() else { return }
+        playbackQueue.removeAll { $0.id == previous.id }
+        playbackQueue.insert(previous, at: 0)
+        renderPendingQueue()
+        play(track: previous, resetQueue: false)
+    }
     @objc func playNext() { playByOffset(1) }
 
     @objc func toggleShuffle() {
         isShuffleEnabled.toggle()
         UserDefaults.standard.set(isShuffleEnabled, forKey: "shuffleEnabled")
+        reorderPendingQueue()
         updatePlaybackModeButtons()
     }
 
@@ -55,45 +65,62 @@ extension AppDelegate {
     }
 
     func playByOffset(_ offset: Int) {
-        guard let next = nextTrack(offset: offset, allowStopAtEnd: false) else { return }
-        play(track: next)
+        guard offset > 0 else { return }
+        guard let next = consumeCurrentAndNext(allowStopAtEnd: false) else { return }
+        play(track: next, resetQueue: false)
     }
 
-    func nextTrack(offset: Int, allowStopAtEnd: Bool) -> Track? {
-        let queue = playbackQueue()
-        guard !queue.isEmpty else { return nil }
-
-        if isShuffleEnabled, queue.count > 1 {
-            var candidates = queue
-            if let currentTrack {
-                candidates.removeAll { $0.id == currentTrack.id }
-            }
-            return candidates.randomElement() ?? queue.randomElement()
+    /// 用新的来源重建待播清单。当前歌曲位于队首，结束后才会从清单移除。
+    func resetPlaybackQueue(with source: [Track], startingAt track: Track) {
+        let unique = source.reduce(into: [Track]()) { result, candidate in
+            if !result.contains(where: { $0.id == candidate.id }) { result.append(candidate) }
         }
+        guard let index = unique.firstIndex(where: { $0.id == track.id }) else {
+            playbackQueue = [track]
+            renderPendingQueue()
+            return
+        }
+        playbackQueue = Array(unique[index...]) + Array(unique[..<index])
+        playbackHistory = []
+        reorderPendingQueue()
+        renderPendingQueue()
+    }
 
-        let base = currentTrack.flatMap { track in queue.firstIndex(where: { $0.id == track.id }) } ?? (offset > 0 ? -1 : 0)
-        let proposed = base + offset
-        if allowStopAtEnd, repeatMode == .off, (proposed < 0 || proposed >= queue.count) {
+    /// 将歌曲追加到当前待播队列，不改变正在播放的歌曲或既有顺序。
+    func enqueueTracks(_ tracksToAppend: [Track]) {
+        for track in tracksToAppend where !playbackQueue.contains(where: { $0.id == track.id }) {
+            playbackQueue.append(track)
+        }
+        renderPendingQueue()
+    }
+
+    /// 随机播放只重排尚未播放的歌曲，队首的当前歌曲不会变化。
+    func reorderPendingQueue() {
+        guard playbackQueue.count > 2 else { return }
+        let current = playbackQueue.removeFirst()
+        if isShuffleEnabled {
+            playbackQueue.shuffle()
+        }
+        playbackQueue.insert(current, at: 0)
+    }
+
+    /// 当前曲结束（或手动下一首）时，将它从待播清单中消费并返回下一首。
+    func consumeCurrentAndNext(allowStopAtEnd: Bool) -> Track? {
+        if let currentTrack {
+            playbackQueue.removeAll { $0.id == currentTrack.id }
+            playbackHistory.append(currentTrack)
+        }
+        guard !playbackQueue.isEmpty else {
+            renderPendingQueue()
             return nil
         }
-        return queue[(proposed + queue.count) % queue.count]
-    }
-
-    func playbackQueue() -> [Track] {
-        if !playlistsPage.isHidden, let playlist = selectedPlaylist() {
-            let playlistTracks = PlaylistHelpers.deduplicatedTrackIDs(playlist.trackIDs, tracks: tracks)
-                .compactMap { id in tracks.first(where: { $0.id == id }) }
-            if !playlistTracks.isEmpty {
-                return playlistTracks
-            }
+        if isShuffleEnabled, playbackQueue.count > 1 {
+            let index = Int.random(in: 0..<playbackQueue.count)
+            let selected = playbackQueue.remove(at: index)
+            playbackQueue.insert(selected, at: 0)
         }
-        if !filteredTracks.isEmpty {
-            return filteredTracks
-        }
-        if let selectedFolderID {
-            return tracks.filter { $0.folderID == selectedFolderID }
-        }
-        return tracks
+        renderPendingQueue()
+        return playbackQueue.first
     }
 
     func advanceAfterTrackEnded() {
@@ -108,14 +135,14 @@ extension AppDelegate {
             return
         }
 
-        guard let next = nextTrack(offset: 1, allowStopAtEnd: true) else {
+        guard let next = consumeCurrentAndNext(allowStopAtEnd: true) else {
             audioPlayer?.currentTime = 0
             updatePlayButtons()
             updateProgress()
             isAdvancingAtEnd = false
             return
         }
-        play(track: next)
+        play(track: next, resetQueue: false)
     }
 
     @objc func seekChanged(_ sender: NSSlider) {
@@ -149,6 +176,7 @@ extension AppDelegate {
         renderTracks()
         renderRecent()
         renderSelectedPlaylistTracks()
+        renderPendingQueue()
     }
 
     func updatePlayButtons() {
@@ -184,6 +212,7 @@ extension AppDelegate {
             $0.toolTip = repeatTip
             $0.contentTintColor = repeatColor
         }
+        playbackOrderPopup.selectItem(at: isShuffleEnabled ? 1 : 0)
     }
 
     func startTimer() {
@@ -248,6 +277,26 @@ extension AppDelegate {
             label.textColor = isActive ? Theme.accent : Theme.secondaryText
             label.font = .systemFont(ofSize: isActive ? 19 : 17, weight: isActive ? .bold : .regular)
             label.applyBackground(isActive ? Theme.cardSelectedBackground : .clear)
+        }
+    }
+
+    func renderPendingQueue() {
+        pendingCountLabel.stringValue = "\(playbackQueue.count) 首"
+        libraryPendingCountLabel.stringValue = "\(playbackQueue.count) 首"
+        UIHelpers.clear(pendingTrackStack)
+        UIHelpers.clear(libraryPendingTrackStack)
+        if playbackQueue.isEmpty {
+            let text = "从歌曲列表或播放列表开始播放后，将在这里显示待播歌曲。"
+            pendingTrackStack.addArrangedSubview(UIHelpers.emptyLabel(text))
+            libraryPendingTrackStack.addArrangedSubview(UIHelpers.emptyLabel(text))
+            return
+        }
+        for (index, track) in playbackQueue.enumerated() {
+            [pendingTrackStack, libraryPendingTrackStack].forEach { stack in
+                let row = TrackRowView()
+                row.configure(track: track, index: index + 1, active: track.id == currentTrack?.id)
+                stack.addArrangedSubview(row)
+            }
         }
     }
 }

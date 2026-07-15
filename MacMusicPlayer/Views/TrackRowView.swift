@@ -34,15 +34,12 @@ final class TrackRowView: NSControl {
         metaLabel.font = .systemFont(ofSize: 12, weight: .medium)
         metaLabel.textColor = Theme.accent
 
-        let textStack = NSStackView(views: [titleLabel, subtitleLabel])
-        textStack.orientation = .vertical
-        textStack.spacing = 2
-        textStack.translatesAutoresizingMaskIntoConstraints = false
-
         addSubview(coverView)
-        addSubview(textStack)
+        addSubview(titleLabel)
+        addSubview(subtitleLabel)
         addSubview(metaLabel)
 
+        [titleLabel, subtitleLabel].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
         metaLabel.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
@@ -53,9 +50,13 @@ final class TrackRowView: NSControl {
             coverView.widthAnchor.constraint(equalToConstant: 38),
             coverView.heightAnchor.constraint(equalToConstant: 38),
 
-            textStack.leadingAnchor.constraint(equalTo: coverView.trailingAnchor, constant: 12),
-            textStack.centerYAnchor.constraint(equalTo: centerYAnchor),
-            textStack.trailingAnchor.constraint(lessThanOrEqualTo: metaLabel.leadingAnchor, constant: -12),
+            // 两行文字共用同一条起始线，始终与封面保持固定间距。
+            titleLabel.leadingAnchor.constraint(equalTo: coverView.trailingAnchor, constant: 12),
+            subtitleLabel.leadingAnchor.constraint(equalTo: coverView.trailingAnchor, constant: 12),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: metaLabel.leadingAnchor, constant: -12),
+            subtitleLabel.trailingAnchor.constraint(lessThanOrEqualTo: metaLabel.leadingAnchor, constant: -12),
+            titleLabel.bottomAnchor.constraint(equalTo: centerYAnchor, constant: -1),
+            subtitleLabel.topAnchor.constraint(equalTo: centerYAnchor, constant: 2),
 
             metaLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
             metaLabel.centerYAnchor.constraint(equalTo: centerYAnchor)

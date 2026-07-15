@@ -12,6 +12,7 @@ extension AppDelegate {
         window.title = "本地音乐器"
         window.center()
         window.minSize = NSSize(width: 920, height: 620)
+        buildApplicationMenu()
         root.applyBackground(Theme.windowBackground)
         window.contentView = root
 
@@ -59,7 +60,7 @@ extension AppDelegate {
 
         configureMiniPlayer()
 
-        let stack = NSStackView(views: [brand, libraryButton, foldersButton, playlistsButton, NSView(), miniPlayer])
+        let stack = NSStackView(views: [brand, libraryButton, playlistsButton, foldersButton, NSView(), miniPlayer])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
@@ -185,9 +186,12 @@ extension AppDelegate {
         selectTracksButton.bezelStyle = .rounded
         addSelectedButton.bezelStyle = .rounded
         addSelectedButton.contentTintColor = Theme.accent
+        enqueueSelectedButton.bezelStyle = .rounded
+        enqueueSelectedButton.contentTintColor = Theme.accent
+        configureQueueButton(libraryQueueButton)
         selectionStatusLabel.font = .systemFont(ofSize: 12)
         selectionStatusLabel.textColor = Theme.secondaryText
-        let libraryTools = NSStackView(views: [selectionStatusLabel, libraryCountLabel, selectTracksButton, addSelectedButton])
+        let libraryTools = NSStackView(views: [libraryQueueButton, selectionStatusLabel, libraryCountLabel, selectTracksButton, enqueueSelectedButton, addSelectedButton])
         libraryTools.orientation = .horizontal
         libraryTools.alignment = .centerY
         libraryTools.spacing = 10
@@ -196,6 +200,16 @@ extension AppDelegate {
         let scroll = UIHelpers.scrollView(containing: trackStack)
         libraryPanel.addArrangedSubview(scroll)
 
+        libraryQueuePanel = makePanel(title: "待播清单", trailing: libraryPendingCountLabel)
+        configureStack(libraryPendingTrackStack)
+        libraryQueuePanel.addArrangedSubview(UIHelpers.scrollView(containing: libraryPendingTrackStack))
+        libraryQueuePanel.isHidden = true
+        libraryQueueWidthConstraint = libraryQueuePanel.widthAnchor.constraint(equalToConstant: 280)
+        let libraryContent = NSStackView(views: [libraryPanel, libraryQueuePanel])
+        libraryContent.orientation = .horizontal
+        libraryContent.spacing = 18
+        libraryContent.translatesAutoresizingMaskIntoConstraints = false
+
         let dashboard = NSStackView(views: [recentPanel])
         dashboard.orientation = .horizontal
         dashboard.spacing = 18
@@ -203,7 +217,7 @@ extension AppDelegate {
         dashboard.translatesAutoresizingMaskIntoConstraints = false
 
         libraryPage.addSubview(dashboard)
-        libraryPage.addSubview(libraryPanel)
+        libraryPage.addSubview(libraryContent)
 
         NSLayoutConstraint.activate([
             top.leadingAnchor.constraint(equalTo: libraryPage.leadingAnchor, constant: 34),
@@ -215,12 +229,12 @@ extension AppDelegate {
             dashboard.leadingAnchor.constraint(equalTo: top.leadingAnchor),
             dashboard.trailingAnchor.constraint(equalTo: top.trailingAnchor),
             dashboard.topAnchor.constraint(equalTo: top.bottomAnchor, constant: 24),
-            dashboard.heightAnchor.constraint(equalToConstant: 210),
+            dashboard.heightAnchor.constraint(equalToConstant: 290),
 
-            libraryPanel.leadingAnchor.constraint(equalTo: top.leadingAnchor),
-            libraryPanel.trailingAnchor.constraint(equalTo: top.trailingAnchor),
-            libraryPanel.topAnchor.constraint(equalTo: dashboard.bottomAnchor, constant: 18),
-            libraryPanel.bottomAnchor.constraint(equalTo: libraryPage.bottomAnchor, constant: -34)
+            libraryContent.leadingAnchor.constraint(equalTo: top.leadingAnchor),
+            libraryContent.trailingAnchor.constraint(equalTo: top.trailingAnchor),
+            libraryContent.topAnchor.constraint(equalTo: dashboard.bottomAnchor, constant: 18),
+            libraryContent.bottomAnchor.constraint(equalTo: libraryPage.bottomAnchor, constant: -34)
         ])
     }
 
@@ -326,7 +340,10 @@ extension AppDelegate {
         configurePrimaryButton(newPlaylistButton)
         deletePlaylistButton.bezelStyle = .rounded
         deletePlaylistButton.contentTintColor = Theme.destructive
-        let actions = NSStackView(views: [newPlaylistButton, deletePlaylistButton])
+        playbackOrderPopup.addItems(withTitles: ["顺序播放", "随机播放"])
+        playbackOrderPopup.selectItem(at: isShuffleEnabled ? 1 : 0)
+        playbackOrderPopup.bezelStyle = .rounded
+        let actions = NSStackView(views: [playbackOrderPopup, playPlaylistButton, newPlaylistButton, deletePlaylistButton])
         actions.orientation = .horizontal
         actions.spacing = 10
 
@@ -340,6 +357,11 @@ extension AppDelegate {
         configureStack(playlistStack)
         listPanel.addArrangedSubview(UIHelpers.scrollView(containing: playlistStack))
 
+        selectPlaylistTracksButton.bezelStyle = .rounded
+        removeSelectedPlaylistTracksButton.bezelStyle = .rounded
+        removeSelectedPlaylistTracksButton.contentTintColor = Theme.destructive
+        playlistSelectionStatusLabel.font = .systemFont(ofSize: 12)
+        playlistSelectionStatusLabel.textColor = Theme.secondaryText
         let titleStack = NSStackView(views: [selectedPlaylistTitle, selectedPlaylistCountLabel])
         titleStack.orientation = .vertical
         titleStack.spacing = 2
@@ -347,7 +369,11 @@ extension AppDelegate {
         selectedPlaylistTitle.textColor = Theme.text
         selectedPlaylistCountLabel.font = .systemFont(ofSize: 12)
         selectedPlaylistCountLabel.textColor = Theme.secondaryText
-        let tracksPanel = makePanel(title: "歌曲", trailing: titleStack)
+        let playlistTools = NSStackView(views: [playlistSelectionStatusLabel, selectPlaylistTracksButton, removeSelectedPlaylistTracksButton, titleStack])
+        playlistTools.orientation = .horizontal
+        playlistTools.alignment = .centerY
+        playlistTools.spacing = 8
+        let tracksPanel = makePanel(title: "歌曲", trailing: playlistTools)
         configureStack(playlistTrackStack)
         tracksPanel.addArrangedSubview(UIHelpers.scrollView(containing: playlistTrackStack))
 
@@ -421,13 +447,26 @@ extension AppDelegate {
 
         [detailCover, detailTitle, detailArtist, detailFolder, controls, seek].forEach { albumPanel.addArrangedSubview($0) }
 
-        let lyricsPanel = makePanel(title: "歌词", trailing: lyricsStatus)
+        playerQueuePanel = makePanel(title: "待播清单", trailing: pendingCountLabel)
+        configureStack(pendingTrackStack)
+        playerQueuePanel.addArrangedSubview(UIHelpers.scrollView(containing: pendingTrackStack))
+        playerQueuePanel.isHidden = true
+        playerQueueWidthConstraint = playerQueuePanel.widthAnchor.constraint(equalToConstant: 280)
+
+        playerLyricsPanel = makePanel(title: "歌词", trailing: lyricsStatus)
         configureStack(lyricsStack)
-        lyricsPanel.addArrangedSubview(UIHelpers.scrollView(containing: lyricsStack))
+        playerLyricsPanel.addArrangedSubview(UIHelpers.scrollView(containing: lyricsStack))
+
+        configureQueueButton(playerQueueButton)
+        let rightColumn = NSStackView(views: [playerQueuePanel, playerQueueButton, playerLyricsPanel])
+        rightColumn.orientation = .horizontal
+        rightColumn.alignment = .centerY
+        rightColumn.spacing = 12
+        rightColumn.translatesAutoresizingMaskIntoConstraints = false
 
         playerPage.addSubview(backButton)
         playerPage.addSubview(albumPanel)
-        playerPage.addSubview(lyricsPanel)
+        playerPage.addSubview(rightColumn)
 
         NSLayoutConstraint.activate([
             backButton.leadingAnchor.constraint(equalTo: playerPage.leadingAnchor, constant: 34),
@@ -444,10 +483,12 @@ extension AppDelegate {
             currentTime.widthAnchor.constraint(equalToConstant: 42),
             durationTime.widthAnchor.constraint(equalToConstant: 42),
 
-            lyricsPanel.leadingAnchor.constraint(equalTo: albumPanel.trailingAnchor, constant: 22),
-            lyricsPanel.trailingAnchor.constraint(equalTo: playerPage.trailingAnchor, constant: -34),
-            lyricsPanel.topAnchor.constraint(equalTo: albumPanel.topAnchor),
-            lyricsPanel.bottomAnchor.constraint(equalTo: albumPanel.bottomAnchor)
+            rightColumn.leadingAnchor.constraint(equalTo: albumPanel.trailingAnchor, constant: 22),
+            rightColumn.trailingAnchor.constraint(equalTo: playerPage.trailingAnchor, constant: -34),
+            rightColumn.topAnchor.constraint(equalTo: albumPanel.topAnchor),
+            rightColumn.bottomAnchor.constraint(equalTo: albumPanel.bottomAnchor),
+            playerQueueButton.widthAnchor.constraint(equalToConstant: 36),
+            playerQueuePanel.heightAnchor.constraint(equalTo: rightColumn.heightAnchor)
         ])
     }
 
@@ -470,6 +511,7 @@ extension AppDelegate {
         button.alignment = .left
         button.image = UIHelpers.symbolImage(image, pointSize: 16, color: Theme.text)
         button.imagePosition = .imageLeading
+        button.contentTintColor = Theme.accent
         button.font = .systemFont(ofSize: 14, weight: .semibold)
         button.setButtonType(.toggle)
         button.translatesAutoresizingMaskIntoConstraints = false
@@ -482,6 +524,13 @@ extension AppDelegate {
         button.translatesAutoresizingMaskIntoConstraints = false
         button.widthAnchor.constraint(equalToConstant: 36).isActive = true
         button.heightAnchor.constraint(equalToConstant: 36).isActive = true
+    }
+
+    func configureQueueButton(_ button: NSButton) {
+        button.image = UIHelpers.symbolImage("list.bullet", pointSize: 16, color: Theme.accent)
+        button.toolTip = "显示待播清单"
+        configureIconButton(button)
+        button.contentTintColor = Theme.accent
     }
 
     func configurePrimaryButton(_ button: NSButton) {

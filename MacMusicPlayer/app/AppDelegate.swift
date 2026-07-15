@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let backButton = NSButton(title: "‹ 返回资料库", target: nil, action: nil)
     let selectTracksButton = NSButton(title: "选择", target: nil, action: nil)
     let addSelectedButton = NSButton(title: "加入列表", target: nil, action: nil)
+    let enqueueSelectedButton = NSButton(title: "加入待播", target: nil, action: nil)
 
     let searchField = NSSearchField()
     let folderFilterPopup = NSPopUpButton()
@@ -35,8 +36,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let folderStack = NSStackView()
     let playlistStack = NSStackView()
     let playlistTrackStack = NSStackView()
+    let pendingTrackStack = NSStackView()
+    let libraryPendingTrackStack = NSStackView()
+    let pendingCountLabel = NSTextField(labelWithString: "0 首")
+    let libraryPendingCountLabel = NSTextField(labelWithString: "0 首")
     let newPlaylistButton = NSButton(title: "新建列表", target: nil, action: nil)
     let deletePlaylistButton = NSButton(title: "删除列表", target: nil, action: nil)
+    let playPlaylistButton = NSButton(title: "播放", target: nil, action: nil)
+    let playbackOrderPopup = NSPopUpButton()
+    let selectPlaylistTracksButton = NSButton(title: "选择", target: nil, action: nil)
+    let removeSelectedPlaylistTracksButton = NSButton(title: "移除歌曲", target: nil, action: nil)
+    let playlistSelectionStatusLabel = NSTextField(labelWithString: "未选择")
+    let libraryQueueButton = NSButton(title: "", target: nil, action: nil)
+    let playerQueueButton = NSButton(title: "", target: nil, action: nil)
+    var libraryQueuePanel: NSStackView!
+    var playerQueuePanel: NSStackView!
+    var playerLyricsPanel: NSStackView!
+    var libraryQueueWidthConstraint: NSLayoutConstraint!
+    var playerQueueWidthConstraint: NSLayoutConstraint!
 
     let miniPlayer = NSView()
     let miniCover = NSImageView()
@@ -44,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let miniArtist = NSTextField(labelWithString: "从文件夹导入音乐开始")
     let sideCurrentTime = NSTextField(labelWithString: "0:00")
     let sideDuration = NSTextField(labelWithString: "0:00")
-    let sideSeek = NSSlider(value: 0, minValue: 0, maxValue: 100, target: nil, action: nil)
+    let sideSeek = PomegranateSlider(value: 0, minValue: 0, maxValue: 100, target: nil, action: nil)
 
     let nowCard = NSView()
     let nowCover = NSImageView()
@@ -52,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let nowArtist = NSTextField(labelWithString: "支持 mp3、m4a、aac、wav、flac、ogg")
     let miniCurrentTime = NSTextField(labelWithString: "0:00")
     let miniDuration = NSTextField(labelWithString: "0:00")
-    let miniSeek = NSSlider(value: 0, minValue: 0, maxValue: 100, target: nil, action: nil)
+    let miniSeek = PomegranateSlider(value: 0, minValue: 0, maxValue: 100, target: nil, action: nil)
 
     let detailCover = NSImageView()
     let detailTitle = NSTextField(labelWithString: "还没有播放歌曲")
@@ -60,7 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let detailFolder = NSTextField(labelWithString: "未选择来源")
     let currentTime = NSTextField(labelWithString: "0:00")
     let durationTime = NSTextField(labelWithString: "0:00")
-    let seekBar = NSSlider(value: 0, minValue: 0, maxValue: 100, target: nil, action: nil)
+    let seekBar = PomegranateSlider(value: 0, minValue: 0, maxValue: 100, target: nil, action: nil)
     let lyricsStack = NSStackView()
     let lyricsStatus = NSTextField(labelWithString: "自动匹配同名 .lrc")
 
@@ -90,9 +107,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var selectedPlaylistID: String?
     var selectedTrackIDs = Set<String>()
     var isSelectingTracks = false
+    var selectedPlaylistTrackIDs = Set<String>()
+    var isSelectingPlaylistTracks = false
+    var isQueueSidebarVisible = false
     var isShuffleEnabled = UserDefaults.standard.bool(forKey: "shuffleEnabled")
     var repeatMode: RepeatMode = .off
     var isAdvancingAtEnd = false
+    /// 队首始终是当前曲目；其余项目即为待播清单。
+    var playbackQueue: [Track] = []
+    var playbackHistory: [Track] = []
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         true
@@ -100,6 +123,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
+           let icon = NSImage(contentsOf: iconURL) {
+            NSApp.applicationIconImage = icon
+        }
         buildWindow()
         buildSidebar()
         buildLibraryPage()
@@ -107,6 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         buildPlaylistsPage()
         buildPlayerPage()
         bindActions()
+        configureAppearance()
         // observeAppearanceChanges()
         loadFolders()
         loadPlaylists()
@@ -156,6 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         renderRecent()
         renderFolders()
         renderPlaylists()
+        renderPendingQueue()
         updatePlaybackModeButtons()
     }
 

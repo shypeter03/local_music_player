@@ -19,6 +19,16 @@ extension AppDelegate {
         selectTracksButton.action = #selector(toggleTrackSelection)
         addSelectedButton.target = self
         addSelectedButton.action = #selector(addSelectedTracksToPlaylist)
+        enqueueSelectedButton.target = self
+        enqueueSelectedButton.action = #selector(enqueueSelectedTracks)
+        libraryQueueButton.target = self
+        libraryQueueButton.action = #selector(toggleQueueSidebar)
+        playerQueueButton.target = self
+        playerQueueButton.action = #selector(toggleQueueSidebar)
+        selectPlaylistTracksButton.target = self
+        selectPlaylistTracksButton.action = #selector(togglePlaylistTrackSelection)
+        removeSelectedPlaylistTracksButton.target = self
+        removeSelectedPlaylistTracksButton.action = #selector(removeSelectedPlaylistTracks)
         newPlaylistButton.target = self
         newPlaylistButton.action = #selector(createPlaylist)
         deletePlaylistButton.target = self
@@ -47,10 +57,15 @@ extension AppDelegate {
         repeatButton.action = #selector(cycleRepeatMode)
         detailRepeatButton.target = self
         detailRepeatButton.action = #selector(cycleRepeatMode)
+        playPlaylistButton.target = self
+        playPlaylistButton.action = #selector(playSelectedPlaylist)
+        playbackOrderPopup.target = self
+        playbackOrderPopup.action = #selector(playbackOrderChanged)
         [sideSeek, miniSeek, seekBar].forEach {
             $0.target = self
             $0.action = #selector(seekChanged(_:))
         }
+        playbackOrderPopup.contentTintColor = Theme.accent
         updatePlaybackModeButtons()
     }
 
@@ -60,7 +75,7 @@ extension AppDelegate {
 
     @objc func openPlayerFromCurrent() {
         if currentTrack == nil, let first = tracks.first {
-            play(track: first)
+            play(track: first, resetQueue: true)
         }
         showPage(playerPage)
     }
@@ -265,6 +280,27 @@ extension AppDelegate {
         selectTracksButton.title = isSelectingTracks ? "完成" : "选择"
         selectionStatusLabel.stringValue = isSelectingTracks ? "已选择 \(selectedTrackIDs.count) 首" : "未选择"
         addSelectedButton.isEnabled = isSelectingTracks && !selectedTrackIDs.isEmpty
+        enqueueSelectedButton.isEnabled = isSelectingTracks && !selectedTrackIDs.isEmpty
+    }
+
+    @objc func enqueueSelectedTracks() {
+        let selection = filteredTracks.filter { selectedTrackIDs.contains($0.id) }
+        guard !selection.isEmpty else { return }
+        enqueueTracks(selection)
+        selectedTrackIDs.removeAll()
+        isSelectingTracks = false
+        renderTracks()
+    }
+
+    @objc func toggleQueueSidebar() {
+        isQueueSidebarVisible.toggle()
+        libraryQueuePanel.isHidden = !isQueueSidebarVisible
+        playerQueuePanel.isHidden = !isQueueSidebarVisible
+        libraryQueueWidthConstraint.isActive = isQueueSidebarVisible
+        playerQueueWidthConstraint.isActive = isQueueSidebarVisible
+        let tip = isQueueSidebarVisible ? "隐藏待播清单" : "显示待播清单"
+        [libraryQueueButton, playerQueueButton].forEach { $0.toolTip = tip }
+        window.layoutIfNeeded()
     }
 
     @objc func removeFolder(_ sender: NSButton) {
@@ -281,6 +317,15 @@ extension AppDelegate {
 
     @objc func trackRowClicked(_ sender: TrackRowView) {
         guard let track = tracks.first(where: { $0.id == sender.trackID }) else { return }
+        if !playlistsPage.isHidden, isSelectingPlaylistTracks {
+            if selectedPlaylistTrackIDs.contains(track.id) {
+                selectedPlaylistTrackIDs.remove(track.id)
+            } else {
+                selectedPlaylistTrackIDs.insert(track.id)
+            }
+            renderSelectedPlaylistTracks()
+            return
+        }
         if isSelectingTracks {
             if selectedTrackIDs.contains(track.id) {
                 selectedTrackIDs.remove(track.id)
@@ -290,7 +335,14 @@ extension AppDelegate {
             renderTracks()
             return
         }
-        play(track: track)
+        if !playlistsPage.isHidden, let playlist = selectedPlaylist() {
+            let playlistTracks = PlaylistHelpers.deduplicatedTrackIDs(playlist.trackIDs, tracks: tracks)
+                .compactMap { id in tracks.first(where: { $0.id == id }) }
+            play(track: track, resetQueue: false)
+            resetPlaybackQueue(with: playlistTracks, startingAt: track)
+        } else {
+            play(track: track, resetQueue: true)
+        }
     }
 
     @objc func toggleTrackSelection() {
