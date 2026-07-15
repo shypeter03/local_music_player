@@ -200,7 +200,7 @@ extension AppDelegate {
             }
         }
         renderTracks()
-        renderRecent()
+        // renderRecent()
     }
 
     func renderTracks() {
@@ -226,21 +226,21 @@ extension AppDelegate {
         }
     }
 
-    func renderRecent() {
-        UIHelpers.clear(recentStack)
-        let recent = recentIDs.compactMap { id in tracks.first(where: { $0.id == id }) }.prefix(5)
-        if recent.isEmpty {
-            recentStack.addArrangedSubview(UIHelpers.emptyLabel("播放后会出现在这里"))
-            return
-        }
-        for track in recent {
-            let row = TrackRowView()
-            row.configure(track: track, index: 0, active: false)
-            row.target = self
-            row.action = #selector(trackRowClicked(_:))
-            recentStack.addArrangedSubview(row)
-        }
-    }
+    // func renderRecent() {
+    //     UIHelpers.clear(recentStack)
+    //     let recent = recentIDs.compactMap { id in tracks.first(where: { $0.id == id }) }.prefix(5)
+    //     if recent.isEmpty {
+    //         recentStack.addArrangedSubview(UIHelpers.emptyLabel("播放后会出现在这里"))
+    //         return
+    //     }
+    //     for track in recent {
+    //         let row = TrackRowView()
+    //         row.configure(track: track, index: 0, active: false)
+    //         row.target = self
+    //         row.action = #selector(trackRowClicked(_:))
+    //         recentStack.addArrangedSubview(row)
+    //     }
+    // }
 
     func renderFolders() {
         folderCountLabel.stringValue = "\(folders.count) 个"
@@ -301,36 +301,48 @@ extension AppDelegate {
     @objc func toggleQueueSidebar() {
         // 1. 根据当前正在展示的页面，动态决定操作哪一个侧边栏及约束
         let queuePanel: NSStackView
-            let widthConstraint: NSLayoutConstraint
+        let widthConstraint: NSLayoutConstraint
 
-            if currentPage == playerPage {
-                queuePanel = playerQueuePanel
-                    widthConstraint = playerQueueWidthConstraint
+        if currentPage == playerPage {
+            queuePanel = playerQueuePanel
+                widthConstraint = playerQueueWidthConstraint
+        } else {
+            // 主资料库页对应的待播清单面板与约束
+            queuePanel = libraryQueuePanel
+                widthConstraint = libraryQueueWidthConstraint
+        }
+
+        // 1. 确保开启了 Layer 支持
+        queuePanel.wantsLayer = true
+        
+        // 2. 物理宽度直接锁死在 150，不再通过动画动态去变它
+        widthConstraint.constant = 150 
+        
+        // 3. 判断当前是否是隐藏状态
+        let isCurrentlyHidden = queuePanel.isHidden || queuePanel.alphaValue == 0
+
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.2 // 稍微缩短时间，让淡入淡出显得更干脆利落
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+
+            if isCurrentlyHidden {
+                // 🌟 展开：先让透明度归零，解除隐藏，然后优雅淡入到 1.0
+                queuePanel.alphaValue = 0
+                queuePanel.isHidden = false
+                queuePanel.animator().alphaValue = 1.0
             } else {
-                // 主资料库页对应的待播清单面板与约束
-                queuePanel = libraryQueuePanel
-                    widthConstraint = libraryQueueWidthConstraint
+                // 🌟 收起：动画让透明度变到 0.0
+                queuePanel.animator().alphaValue = 0.0
             }
-
-        let isCurrentlyHidden = queuePanel.isHidden
-
-            // 2. 执行展开/收起动画
-            NSAnimationContext.runAnimationGroup({ context in
-                    context.duration = 0.25
-                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-
-                    if isCurrentlyHidden {
-                    queuePanel.isHidden = false
-                    widthConstraint.constant = 280 // 展开时的宽度
-                    } else {
-                    widthConstraint.constant = 0 // 收起
-                    }
-                    self.window.contentView?.layoutSubtreeIfNeeded()
-                    }, completionHandler: {
-                    if !isCurrentlyHidden {
-                    queuePanel.isHidden = true
-                    }
-                    })
+            
+            // 刷新布局
+            self.window.contentView?.layoutSubtreeIfNeeded()
+        }, completionHandler: {
+            // 4. 动画结束：如果是收起，彻底将其 setHidden，释放渲染开销
+            if !isCurrentlyHidden {
+                queuePanel.isHidden = true
+            }
+        })
     }
 
     @objc func removeFolder(_ sender: NSButton) {
@@ -383,11 +395,11 @@ extension AppDelegate {
         renderTracks()
     }
 
-    @objc func clearRecent() {
-        recentIDs = []
-        UserDefaults.standard.removeObject(forKey: "recentTracks")
-        renderRecent()
-    }
+    // @objc func clearRecent() {
+    //     recentIDs = []
+    //     UserDefaults.standard.removeObject(forKey: "recentTracks")
+    //     // renderRecent()
+    // }
 
     func loadFolders() {
         guard let data = UserDefaults.standard.data(forKey: "folders"),

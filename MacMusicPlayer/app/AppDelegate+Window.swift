@@ -172,14 +172,14 @@ extension AppDelegate {
         libraryPage.addSubview(top)
 
 
-        let recentPanel = makePanel(title: "最近播放", trailing: makeSmallButton("清空", action: #selector(clearRecent)))
+        // let recentPanel = makePanel(title: "最近播放", trailing: makeSmallButton("清空", action: #selector(clearRecent)))
         for row in recentStack.arrangedSubviews {
             if let constraint = row.constraints.first(where: { $0.firstAttribute == .height }) {
                 constraint.constant = 36 // 从原先可能较大的高度缩减至 36
             }
         }
         configureStack(recentStack)
-        recentPanel.addArrangedSubview(recentStack)
+        // recentPanel.addArrangedSubview(recentStack)
 
         selectTracksButton.bezelStyle = .rounded
         addSelectedButton.bezelStyle = .rounded
@@ -203,13 +203,13 @@ extension AppDelegate {
         libraryQueuePanel.isHidden = true
         libraryQueueWidthConstraint = libraryQueuePanel.widthAnchor.constraint(equalToConstant: 280)
 
-        let dashboard = NSStackView(views: [recentPanel])
-        dashboard.orientation = .horizontal
-        dashboard.spacing = 18
-        dashboard.distribution = .fillEqually
-        dashboard.translatesAutoresizingMaskIntoConstraints = false
+        // let dashboard = NSStackView(views: [recentPanel])
+        // dashboard.orientation = .horizontal
+        // dashboard.spacing = 18
+        // dashboard.distribution = .fillEqually
+        // dashboard.translatesAutoresizingMaskIntoConstraints = false
 
-        libraryLeftColumn = NSStackView(views: [dashboard, libraryPanel])
+        libraryLeftColumn = NSStackView(views: [libraryPanel])
         libraryLeftColumn.orientation = .vertical
         libraryLeftColumn.spacing = 18
         libraryLeftColumn.translatesAutoresizingMaskIntoConstraints = false
@@ -234,7 +234,7 @@ extension AppDelegate {
             libraryMainRow.topAnchor.constraint(equalTo: top.bottomAnchor, constant: 24),
             libraryMainRow.bottomAnchor.constraint(equalTo: libraryPage.bottomAnchor, constant: -34),
 
-            dashboard.heightAnchor.constraint(equalToConstant: 290),
+            // dashboard.heightAnchor.constraint(equalToConstant: 290),
 
             libraryQueuePanel.heightAnchor.constraint(equalTo: libraryLeftColumn.heightAnchor)
         ])

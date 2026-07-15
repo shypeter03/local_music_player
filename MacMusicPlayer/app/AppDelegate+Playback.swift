@@ -1,7 +1,7 @@
 import AppKit
 import AVFoundation
 
-extension AppDelegate {
+extension AppDelegate :AVAudioPlayerDelegate {
 
     func play(track: Track, resetQueue: Bool = true) {
         do {
@@ -9,6 +9,8 @@ extension AppDelegate {
                 resetPlaybackQueue(with: filteredTracks.isEmpty ? tracks : filteredTracks, startingAt: track)
             }
             audioPlayer = try AVAudioPlayer(contentsOf: track.url)
+            audioPlayer?.delegate = self
+
             audioPlayer?.prepareToPlay()
             audioPlayer?.play()
             currentTrack = track
@@ -29,13 +31,28 @@ extension AppDelegate {
         // 如果当前已经有静默加载好的歌曲（冷启动恢复的）
         if let player = audioPlayer {
             if player.isPlaying {
+                // 如果正在播，直接暂停
                 player.pause()
+                updatePlayButtons()
             } else {
-                player.play()
-                    startTimer() // 启动进度条定时器
+                // 如果处于暂停状态：
+                if player.currentTime > 0 {
+                    // 🌟 核心修复：如果已经播放了一部分，直接继续播放，不重头载入！
+                    player.play()
+                    startTimer()
+                    updatePlayButtons()
+                } else {
+                    // 🌟 只有在冷启动（时间为 0 且从未播放过）时，才走规范的 play(track) 去激活全套逻辑
+                    if let track = currentTrack {
+                        play(track: track, resetQueue: false)
+                    } else {
+                        player.play()
+                        startTimer()
+                        updatePlayButtons()
+                    }
+                }
             }
-            updatePlayButtons()
-                return
+            return
         }
 
         // 如果完全没有载入过歌曲，才默认播放第一首
@@ -47,12 +64,21 @@ extension AppDelegate {
 
     @objc func playPrevious() {
         guard let previous = playbackHistory.popLast() else { return }
-        playbackQueue.removeAll { $0.id == previous.id }
-        playbackQueue.insert(previous, at: 0)
+        print("<<正在播放上一首歌 \(previous.title)>>")
         renderPendingQueue()
         play(track: previous, resetQueue: false)
     }
-    @objc func playNext() { playByOffset(1) }
+
+    @objc func playNext() { 
+        print("<<<历史列表 \(playbackHistory)>>>")
+        // playbackHistory.append(track)
+        switch repeatMode {
+        case .all, .off,.one: // 🔁 列表循环 / 顺序播放
+            self.playNextTrack()
+        case .shuffle: // 🔀 随机播放
+            self.playRandomTrack()
+        }
+    }
 
     @objc func toggleShuffle() {
         isShuffleEnabled.toggle()
@@ -69,15 +95,12 @@ extension AppDelegate {
             repeatMode = .one
         case .one:
             repeatMode = .off
+        default: // 🌟 安全兜底
+            repeatMode = .shuffle
         }
         updatePlaybackModeButtons()
     }
 
-    func playByOffset(_ offset: Int) {
-        guard offset > 0 else { return }
-        guard let next = consumeCurrentAndNext(allowStopAtEnd: false) else { return }
-        play(track: next, resetQueue: false)
-    }
 
     /// 用新的来源重建待播清单。当前歌曲位于队首，结束后才会从清单移除。
     func resetPlaybackQueue(with source: [Track], startingAt track: Track) {
@@ -114,47 +137,6 @@ extension AppDelegate {
         playbackQueue.insert(current, at: 0)
     }
 
-    /// 当前曲结束（或手动下一首）时，将它从待播清单中消费并返回下一首。
-    func consumeCurrentAndNext(allowStopAtEnd: Bool) -> Track? {
-        if let currentTrack {
-            playbackQueue.removeAll { $0.id == currentTrack.id }
-            playbackHistory.append(currentTrack)
-        }
-        guard !playbackQueue.isEmpty else {
-            renderPendingQueue()
-            return nil
-        }
-        if isShuffleEnabled, playbackQueue.count > 1 {
-            let index = Int.random(in: 0..<playbackQueue.count)
-            let selected = playbackQueue.remove(at: index)
-            playbackQueue.insert(selected, at: 0)
-        }
-        renderPendingQueue()
-        return playbackQueue.first
-    }
-
-    func advanceAfterTrackEnded() {
-        guard !isAdvancingAtEnd else { return }
-        isAdvancingAtEnd = true
-
-        if repeatMode == .one, let player = audioPlayer {
-            player.currentTime = 0
-            player.play()
-            isAdvancingAtEnd = false
-            updateProgress()
-            return
-        }
-
-        guard let next = consumeCurrentAndNext(allowStopAtEnd: true) else {
-            audioPlayer?.currentTime = 0
-            updatePlayButtons()
-            updateProgress()
-            isAdvancingAtEnd = false
-            return
-        }
-        play(track: next, resetQueue: false)
-    }
-
     @objc func seekChanged(_ sender: NSSlider) {
         guard let player = audioPlayer, player.duration > 0 else { return }
         isAdvancingAtEnd = false
@@ -184,7 +166,7 @@ extension AppDelegate {
         updatePlayButtons()
         updateProgress()
         renderTracks()
-        renderRecent()
+        // renderRecent()
         renderSelectedPlaylistTracks()
         renderPendingQueue()
     }
@@ -216,6 +198,8 @@ extension AppDelegate {
             repeatTip = "列表循环"
         case .one:
             repeatTip = "单曲循环"
+        default: // 🌟 安全兜底
+            repeatTip = "xxxx"
         }
         [repeatButton, detailRepeatButton].forEach {
             $0.image = UIHelpers.symbolImage(repeatSymbol, pointSize: 15, color: repeatColor)
@@ -246,9 +230,6 @@ extension AppDelegate {
         [currentTime, miniCurrentTime, sideCurrentTime].forEach { $0.stringValue = UIHelpers.formatTime(player.currentTime) }
         [durationTime, miniDuration, sideDuration].forEach { $0.stringValue = UIHelpers.formatTime(player.duration) }
         highlightLyric(at: player.currentTime)
-        if !player.isPlaying, player.currentTime >= player.duration, player.duration > 0 {
-            advanceAfterTrackEnded()
-        }
     }
 
     func loadLyrics(for track: Track) {
@@ -483,17 +464,20 @@ extension AppDelegate {
               !savedIDs.isEmpty else { 
             return 
         }
+        print("savedPlaybackQueueIDs =====\(savedIDs)")
         
         // 从全局的 tracks 库中恢复对应的 Track 对象
         let restoredQueue = savedIDs.compactMap { id in
             tracks.first(where: { $0.id == id })
         }
+        print("restoredQueue =====\(restoredQueue)")
         
         if !restoredQueue.isEmpty {
             self.playbackQueue = restoredQueue
             
             // 尝试恢复上一次播放的歌曲，如果找不到，就默认用待播清单的第一首
             let savedCurrentID = UserDefaults.standard.string(forKey: "savedCurrentTrackID")
+
             let targetTrack = restoredQueue.first(where: { $0.id == savedCurrentID }) ?? restoredQueue.first
             
             if let trackToLoad = targetTrack {
@@ -507,6 +491,7 @@ extension AppDelegate {
     func loadTrackWithoutPlaying(_ track: Track) {
         do {
             audioPlayer = try AVAudioPlayer(contentsOf: track.url)
+            audioPlayer?.delegate = self
             audioPlayer?.prepareToPlay() // 仅准备，不 play()
             
             currentTrack = track
@@ -520,5 +505,30 @@ extension AppDelegate {
         } catch {
             print("静默载入歌曲失败: \(error)")
         }
+    }
+    /// 当歌曲自然播放结束时，系统会自动回调这个方法
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        // 🌟 1. 打印黄金分界线，确认这个函数到底有没有被执行！
+        print("🚨🚨🚨 [DEBUG] 系统触发了 audioPlayerDidFinishPlaying 回调！successfully = \(flag)")
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            print("🎵 歌曲播放完成，准备切换...")
+            
+            // 根据当前的播放模式来决定下一步
+            switch repeatMode {
+            case .one: // 🔂 单曲循环模式
+                self.handleSingleLoop()
+            case .all, .off: // 🔁 列表循环 / 顺序播放
+                // playbackHistory.append(track)
+                self.playNextTrack()
+            case .shuffle: // 🔀 随机播放
+                // playbackHistory.append(track)
+                self.playRandomTrack()
+            }
+        }
+    }
+    // 加上这个方法测试！
+    func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        print("❌❌❌ 播放器解码出错啦！ Error: \(String(describing: error))")
     }
 }

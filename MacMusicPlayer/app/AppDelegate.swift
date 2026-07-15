@@ -188,11 +188,80 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         miniPlayer.applyBackground(Theme.miniPlayerBackground)
         nowCard.applyBackground(Theme.nowPlayingBackground)
         renderTracks()
-        renderRecent()
+        // renderRecent()
         renderFolders()
         renderPlaylists()
         renderPendingQueue()
         updatePlaybackModeButtons()
+    }
+    /// 1. 🔂 单曲循环处理：原地重播当前歌曲
+    func handleSingleLoop() {
+        guard let current = self.currentTrack else {
+            // 安全防御：如果没有当前歌，尝试播队列第一首
+            self.playNextTrack()
+            return
+        }
+        print("🔂 单曲循环：重新播放《\(current.title)》")
+        // resetQueue 传入 false，防止打乱用户当前的队列
+        self.play(track: current, resetQueue: false)
+    }
+    
+    /// 2. 🔁 播放下一首（对应 .all 和 .off 的情况）
+    func playNextTrack() {
+        
+        let nextIndex = self.currentIndex + 1
+        
+        if nextIndex < self.playbackQueue.count {
+            // 队列里还有下一首，继续播放
+            let nextTrack = self.playbackQueue[nextIndex]
+            print("➡️ 自动播放下一首 [\(nextIndex + 1)/\(self.playbackQueue.count)]: \(nextTrack.title)")
+            self.play(track: nextTrack, resetQueue: false)
+            playbackHistory.append(nextTrack)
+        } else {
+            // 已经播放到最后一首了
+            if self.repeatMode == .all {
+                // 列表循环开启：回到第一首
+                let firstTrack = self.playbackQueue[0]
+                print("🔁 列表循环：已到最后一首，回到第一首: \(firstTrack.title)")
+                self.play(track: firstTrack, resetQueue: false)
+                playbackHistory.append(firstTrack)
+            } else {
+                // 顺序播放关闭（.off）：到最后一首后停止播放
+                print("⏹️ 顺序播放结束：已播完列表最后一首")
+                // 这里可以根据需要将进度条归 0 或停止 Timer
+                self.audioPlayer?.stop()
+                self.updateCurrentUI()
+            }
+        }
+    }
+    
+    /// 3. 🔀 随机播放一首
+    func playRandomTrack() {
+        guard !self.playbackQueue.isEmpty else {
+            print("⏹️ 播放队列为空，停止播放")
+            self.updateCurrentUI()
+            return
+        }
+        
+        if self.playbackQueue.count == 1 {
+            // 队列里只有一首歌时，随机等同于单曲循环
+            self.handleSingleLoop()
+            return
+        }
+        
+        // 算法：随机生成一个不是当前 currentIndex 的索引
+        var randomIndex = Int.random(in: 0..<self.playbackQueue.count)
+        
+        // 避免刚听完又随机到一模一样的同一首歌（如果列表大于 1 首歌）
+        while randomIndex == self.currentIndex {
+            randomIndex = Int.random(in: 0..<self.playbackQueue.count)
+        }
+        
+        let randomTrack = self.playbackQueue[randomIndex]
+        print("🔀 随机播放 [索引: \(randomIndex)]: \(randomTrack.title)")
+        self.play(track: randomTrack, resetQueue: false)
+        playbackHistory.append(randomTrack)
+
     }
 
 }
