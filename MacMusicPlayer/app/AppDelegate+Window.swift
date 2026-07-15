@@ -62,6 +62,8 @@ extension AppDelegate {
         stack.translatesAutoresizingMaskIntoConstraints = false
         sidebar.addSubview(stack)
 
+        stack.setCustomSpacing(36, after: brand)
+
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: -24),
@@ -152,12 +154,12 @@ extension AppDelegate {
     func buildLibraryPage() {
         addPage(libraryPage)
 
-        let header = makeHeader(eyebrow: "Library", title: "音乐列表")
-        searchField.placeholderString = "搜索歌名、艺术家、文件夹"
+        let header = makeHeader(eyebrow: "", title: AppText.findMusic)
+        searchField.placeholderString = AppText.librarySearchPlaceholder
         searchField.translatesAutoresizingMaskIntoConstraints = false
         folderFilterPopup.translatesAutoresizingMaskIntoConstraints = false
         folderFilterPopup.bezelStyle = .rounded
-        let refresh = NSButton(title: "刷新扫描", target: self, action: #selector(scanFoldersAction))
+        let refresh = NSButton(title: AppText.refreshScan, target: self, action: #selector(scanFoldersAction))
         refresh.bezelStyle = .rounded
         configureQueueButton(libraryQueueButton)
         let headerActions = NSStackView(views: [folderFilterPopup, searchField, refresh, libraryQueueButton])
@@ -192,16 +194,16 @@ extension AppDelegate {
         libraryTools.orientation = .horizontal
         libraryTools.alignment = .centerY
         libraryTools.spacing = 10
-        let libraryPanel = makePanel(title: "歌曲", trailing: libraryTools)
+        let libraryPanel = makePanel(title: AppText.songs, trailing: libraryTools)
         configureStack(trackStack)
         let scroll = UIHelpers.scrollView(containing: trackStack)
         libraryPanel.addArrangedSubview(scroll)
 
-        libraryQueuePanel = makePanel(title: "待播清单", trailing: libraryPendingCountLabel)
+        libraryQueuePanel = makePanel(title: AppText.queue, trailing: libraryPendingCountLabel)
         configureStack(libraryPendingTrackStack)
         libraryQueuePanel.addArrangedSubview(UIHelpers.scrollView(containing: libraryPendingTrackStack))
         libraryQueuePanel.isHidden = true
-        libraryQueueWidthConstraint = libraryQueuePanel.widthAnchor.constraint(equalToConstant: 280)
+        libraryQueueWidthConstraint = libraryQueuePanel.widthAnchor.constraint(equalTo: libraryPage.widthAnchor,multiplier: 0.35)
 
         // let dashboard = NSStackView(views: [recentPanel])
         // dashboard.orientation = .horizontal
@@ -459,14 +461,14 @@ extension AppDelegate {
 
         [detailCover, detailTitle, detailArtist, detailFolder, controls, seek].forEach { albumPanel.addArrangedSubview($0) }
 
-        playerQueuePanel = makePanel(title: "待播清单", trailing: pendingCountLabel)
+        playerQueuePanel = makePanel(title: AppText.queue, trailing: pendingCountLabel)
         configureStack(pendingTrackStack)
         playerQueuePanel.addArrangedSubview(UIHelpers.scrollView(containing: pendingTrackStack))
         playerQueuePanel.isHidden = true
         playerQueuePanel.setContentHuggingPriority(.required, for: .horizontal)
         playerQueueWidthConstraint = playerQueuePanel.widthAnchor.constraint(equalToConstant: 280)
 
-        playerLyricsPanel = makePanel(title: "歌词", trailing: lyricsStatus)
+        playerLyricsPanel = makePanel(title: AppText.lyrics, trailing: lyricsStatus)
         configureStack(lyricsStack)
         playerLyricsPanel.addArrangedSubview(UIHelpers.scrollView(containing: lyricsStack))
         playerLyricsPanel.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -558,7 +560,7 @@ extension AppDelegate {
 
     func configureQueueButton(_ button: NSButton) {
         button.image = UIHelpers.symbolImage("list.bullet", pointSize: 16, color: Theme.accent)
-        button.toolTip = "显示待播清单"
+        button.toolTip = "显示待播"
         configureIconButton(button)
         button.contentTintColor = Theme.accent
     }

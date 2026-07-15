@@ -316,7 +316,8 @@ extension AppDelegate {
         queuePanel.wantsLayer = true
         
         // 2. 物理宽度直接锁死在 150，不再通过动画动态去变它
-        widthConstraint.constant = 150 
+        // widthConstraint.constant = 150 
+        widthConstraint.isActive = true
         
         // 3. 判断当前是否是隐藏状态
         let isCurrentlyHidden = queuePanel.isHidden || queuePanel.alphaValue == 0
