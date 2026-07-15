@@ -252,20 +252,107 @@ extension AppDelegate {
     }
 
     func loadLyrics(for track: Track) {
-        lyrics = []
-        UIHelpers.clear(lyricsStack)
-        let externalLyrics = track.lyricURL.flatMap { try? String(contentsOf: $0) }
-        guard let text = externalLyrics ?? track.embeddedLyrics else {
-            lyricsStatus.stringValue = AppText.noLyrics
-            lyricsStack.addArrangedSubview(UIHelpers.emptyLabel(AppText.lyricsExternalHint))
-            return
+        // 1. 初始化清理
+        self.lyrics = []
+        UIHelpers.clear(self.lyricsStack)
+        self.lyricsStatus.stringValue = "正在加载歌词..."
+
+        // 2. 尝试寻找同名外部 .lrc 文件
+        let audioPath = track.url.path
+        let lrcPath = (audioPath as NSString).deletingPathExtension + ".lrc"
+        let fileManager = FileManager.default
+
+        if fileManager.fileExists(atPath: lrcPath) {
+            do {
+                let lrcContent = try String(contentsOfFile: lrcPath, encoding: .utf8)
+                self.renderLyricText(lrcContent, isEmbedded: false)
+                return
+            } catch {
+                print("⚠️ 读取外部歌词失败: \(error)")
+            }
         }
-        lyrics = LyricParser.parseLRC(text)
-        if lyrics.isEmpty, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            lyrics = [LyricLine(time: 0, text: text)]
+
+        // 3. 外部歌词不存在，异步读取媒体文件的内嵌歌词（支持 FLAC & M4A）
+        let safeURL = URL(fileURLWithPath: track.url.path)
+        let asset = AVAsset(url: safeURL)
+        
+        asset.loadValuesAsynchronously(forKeys: ["metadata", "commonMetadata"]) { [weak self] in
+            guard let self = self else { return }
+            
+            var error: NSError? = nil
+            let metadataStatus = asset.statusOfValue(forKey: "metadata", error: &error)
+            
+            if metadataStatus == .failed {
+                print("❌ AVAsset 读取音频文件元数据失败: \(error?.localizedDescription ?? "未知错误")")
+                DispatchQueue.main.async {
+                    self.lyricsStatus.stringValue = AppText.noLyrics
+                    self.lyricsStack.addArrangedSubview(UIHelpers.emptyLabel(AppText.lyricsExternalHint))
+                }
+                return
+            }
+            
+            var lyricsText: String? = nil
+            
+            // 🌟 【M4A / iTunes 格式歌词匹配】
+            // 匹配 identifier 为 "itsk/%A9lyr" (即 AVMetadataIdentifier.itunesMetadataLyrics)
+            // 🌟 仅保留 identifier.rawValue 的安全字符串比对，彻底解决不同 SDK 版本的编译冲突
+            if let m4aLyricItem = asset.metadata.first(where: { item in
+                    return item.identifier?.rawValue == "itsk/%A9lyr"
+                    }) {
+                lyricsText = m4aLyricItem.stringValue
+            }
+            // 🌟 【FLAC / Vorbis 格式歌词匹配】
+            // 如果 M4A 没匹配到，匹配 FLAC 的 LYRICS / UNSYNCEDLYRICS 标签
+            if lyricsText == nil {
+                for item in asset.metadata {
+                    if let keyString = item.key as? String {
+                        let upperKey = keyString.uppercased()
+                        if upperKey == "LYRICS" || upperKey == "UNSYNCEDLYRICS" || upperKey == "UNSYNCED LYRICS" {
+                            lyricsText = item.stringValue
+                            break
+                        }
+                    }
+                }
+            }
+            
+            // 🌟 【通用格式歌词匹配】
+            // 🌟 修复：直接对比 commonKey 的 rawValue，彻底避开 SDK 命名空间推断报错
+            if lyricsText == nil, let commonLyricItem = asset.commonMetadata.first(where: { item in
+                    if let commonKey = item.commonKey {
+                    return commonKey.rawValue == "lyrics" || commonKey.rawValue == "lld3"
+                    }
+                    return false
+                    }) {
+                lyricsText = commonLyricItem.stringValue
+            }
+
+            // 返回主线程解析并渲染 UI
+            DispatchQueue.main.async {
+                if let text = lyricsText, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    self.renderLyricText(text, isEmbedded: true)
+                } else {
+                    // 彻底没有歌词
+                    self.lyricsStatus.stringValue = AppText.noLyrics
+                    self.lyricsStack.addArrangedSubview(UIHelpers.emptyLabel(AppText.lyricsExternalHint))
+                }
+            }
         }
-        lyricsStatus.stringValue = lyrics.isEmpty ? AppText.lyricsFileEmpty : "\(lyrics.count) 行歌词"
-        lyricLabels = lyrics.map {
+    }
+
+    /// 统一渲染歌词的私有辅助方法
+    private func renderLyricText(_ text: String, isEmbedded: Bool) {
+        // 使用原有的 LyricParser 解析歌词
+        self.lyrics = LyricParser.parseLRC(text)
+        
+        // 如果是无时间戳的纯文本歌词，整段作为一个单行显示
+        if self.lyrics.isEmpty, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            self.lyrics = [LyricLine(time: 0, text: text)]
+        }
+        
+        self.lyricsStatus.stringValue = isEmbedded ? "内嵌歌词 (\(self.lyrics.count)行)" : "外部歌词 (\(self.lyrics.count)行)"
+        
+        // 生成 UI 标签
+        self.lyricLabels = self.lyrics.map {
             let label = NSTextField(labelWithString: $0.text)
             label.font = .systemFont(ofSize: 17, weight: .regular)
             label.textColor = Theme.secondaryText
@@ -277,7 +364,70 @@ extension AppDelegate {
             label.heightAnchor.constraint(greaterThanOrEqualToConstant: 36).isActive = true
             return label
         }
-        lyricLabels.forEach { lyricsStack.addArrangedSubview($0) }
+        
+        // 添加到 StackView
+        self.lyricLabels.forEach { self.lyricsStack.addArrangedSubview($0) }
+        
+        // 重新高亮当前进度的歌词
+        if let player = self.audioPlayer {
+            self.highlightLyric(at: player.currentTime)
+        }
+    }
+
+    /// 辅助方法：将歌词解析并渲染到界面上
+    private func parseAndShowLyrics(_ content: String) {
+        // 这里调用你原本用于解析并把歌词填入 lyricsStack 的方法
+        // 假设你原本的解析逻辑会把歌词分行填入 lyricsStack 里
+        UIHelpers.clear(self.lyricsStack)
+
+            let lines = content.components(separatedBy: .newlines)
+            var hasValidLines = false
+
+            for line in lines {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { continue }
+
+                // 解析时间轴 [00:12.34] 歌词文本
+                // 如果是无时间轴的歌词，直接展示文本
+                let displayText = parseLrcLine(trimmed)
+
+                    let label = NSTextField(labelWithString: displayText)
+                    label.font = .systemFont(ofSize: 16, weight: .regular)
+                    label.textColor = Theme.text
+                    label.alignment = .center
+                    label.lineBreakMode = .byWordWrapping
+                    label.translatesAutoresizingMaskIntoConstraints = false
+
+                    self.lyricsStack.addArrangedSubview(label)
+                    hasValidLines = true
+            }
+
+        if !hasValidLines {
+            showNoLyrics()
+        }
+    }
+
+    /// 简单 LRC 时间标签过滤辅助
+    private func parseLrcLine(_ line: String) -> String {
+        // 如果包含 [00:00.00] 格式，将其去掉只保留文字
+        if line.hasPrefix("[") {
+            if let rightBracketIndex = line.firstIndex(of: "]") {
+                let indexAfter = line.index(after: rightBracketIndex)
+                    return String(line[indexAfter...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        return line
+    }
+
+    /// 辅助方法：展示无歌词提示
+    private func showNoLyrics() {
+        UIHelpers.clear(self.lyricsStack)
+            let tipLabel = NSTextField(labelWithString: AppText.noLyrics)
+            tipLabel.font = .systemFont(ofSize: 14)
+            tipLabel.textColor = Theme.secondaryText
+            tipLabel.alignment = .center
+            self.lyricsStack.addArrangedSubview(tipLabel)
+            self.lyricsStatus.stringValue = ""
     }
 
     func highlightLyric(at time: TimeInterval) {

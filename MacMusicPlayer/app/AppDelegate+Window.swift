@@ -65,7 +65,7 @@ extension AppDelegate {
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: -24),
-            stack.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: 28),
+            stack.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: 50),
             stack.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -24),
             brand.widthAnchor.constraint(equalTo: stack.widthAnchor),
             libraryButton.widthAnchor.constraint(equalTo: stack.widthAnchor),
@@ -501,7 +501,7 @@ extension AppDelegate {
 
             playerAlbumWidthConstraint,
 
-            detailCover.widthAnchor.constraint(equalTo: albumPanel.widthAnchor, constant: -56),
+            detailCover.widthAnchor.constraint(equalToConstant: 300),
             detailCover.heightAnchor.constraint(equalTo: detailCover.widthAnchor),
             seek.widthAnchor.constraint(equalTo: albumPanel.widthAnchor, constant: -56),
             currentTime.widthAnchor.constraint(equalToConstant: 42),
