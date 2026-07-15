@@ -298,9 +298,14 @@ extension AppDelegate {
         playerQueuePanel.isHidden = !isQueueSidebarVisible
         libraryQueueWidthConstraint.isActive = isQueueSidebarVisible
         playerQueueWidthConstraint.isActive = isQueueSidebarVisible
+        updatePlayerAlbumWidth()
         let tip = isQueueSidebarVisible ? "隐藏待播清单" : "显示待播清单"
         [libraryQueueButton, playerQueueButton].forEach { $0.toolTip = tip }
-        window.layoutIfNeeded()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.2
+            context.allowsImplicitAnimation = true
+            window.layoutIfNeeded()
+        }
     }
 
     @objc func removeFolder(_ sender: NSButton) {

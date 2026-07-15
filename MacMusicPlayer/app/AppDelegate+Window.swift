@@ -159,7 +159,8 @@ extension AppDelegate {
         folderFilterPopup.bezelStyle = .rounded
         let refresh = NSButton(title: "刷新扫描", target: self, action: #selector(scanFoldersAction))
         refresh.bezelStyle = .rounded
-        let headerActions = NSStackView(views: [folderFilterPopup, searchField, refresh])
+        configureQueueButton(libraryQueueButton)
+        let headerActions = NSStackView(views: [folderFilterPopup, searchField, refresh, libraryQueueButton])
         headerActions.orientation = .horizontal
         headerActions.spacing = 10
 
@@ -170,9 +171,9 @@ extension AppDelegate {
         top.translatesAutoresizingMaskIntoConstraints = false
         libraryPage.addSubview(top)
 
-        // let nowPanel = makePanel(title: "当前播放", trailing: statusLabel)
-        // configureNowCard()
-        // nowPanel.addArrangedSubview(nowCard)
+        let nowPanel = makePanel(title: "当前播放", trailing: statusLabel)
+        configureNowCard()
+        nowPanel.addArrangedSubview(nowCard)
 
         let recentPanel = makePanel(title: "最近播放", trailing: makeSmallButton("清空", action: #selector(clearRecent)))
         configureStack(recentStack)
@@ -183,10 +184,9 @@ extension AppDelegate {
         addSelectedButton.contentTintColor = Theme.accent
         enqueueSelectedButton.bezelStyle = .rounded
         enqueueSelectedButton.contentTintColor = Theme.accent
-        configureQueueButton(libraryQueueButton)
         selectionStatusLabel.font = .systemFont(ofSize: 12)
         selectionStatusLabel.textColor = Theme.secondaryText
-        let libraryTools = NSStackView(views: [libraryQueueButton, selectionStatusLabel, libraryCountLabel, selectTracksButton, enqueueSelectedButton, addSelectedButton])
+        let libraryTools = NSStackView(views: [selectionStatusLabel, libraryCountLabel, selectTracksButton, enqueueSelectedButton, addSelectedButton])
         libraryTools.orientation = .horizontal
         libraryTools.alignment = .centerY
         libraryTools.spacing = 10
@@ -200,19 +200,25 @@ extension AppDelegate {
         libraryQueuePanel.addArrangedSubview(UIHelpers.scrollView(containing: libraryPendingTrackStack))
         libraryQueuePanel.isHidden = true
         libraryQueueWidthConstraint = libraryQueuePanel.widthAnchor.constraint(equalToConstant: 280)
-        let libraryContent = NSStackView(views: [libraryPanel, libraryQueuePanel])
-        libraryContent.orientation = .horizontal
-        libraryContent.spacing = 18
-        libraryContent.translatesAutoresizingMaskIntoConstraints = false
 
-        let dashboard = NSStackView(views: [recentPanel])
+        let dashboard = NSStackView(views: [recentPanel, nowPanel])
         dashboard.orientation = .horizontal
         dashboard.spacing = 18
         dashboard.distribution = .fillEqually
         dashboard.translatesAutoresizingMaskIntoConstraints = false
 
-        libraryPage.addSubview(dashboard)
-        libraryPage.addSubview(libraryContent)
+        libraryLeftColumn = NSStackView(views: [dashboard, libraryPanel])
+        libraryLeftColumn.orientation = .vertical
+        libraryLeftColumn.spacing = 18
+        libraryLeftColumn.translatesAutoresizingMaskIntoConstraints = false
+
+        libraryMainRow = NSStackView(views: [libraryLeftColumn, libraryQueuePanel])
+        libraryMainRow.orientation = .horizontal
+        libraryMainRow.spacing = 18
+        libraryMainRow.alignment = .top
+        libraryMainRow.translatesAutoresizingMaskIntoConstraints = false
+
+        libraryPage.addSubview(libraryMainRow)
 
         NSLayoutConstraint.activate([
             top.leadingAnchor.constraint(equalTo: libraryPage.leadingAnchor, constant: 34),
@@ -221,65 +227,71 @@ extension AppDelegate {
             folderFilterPopup.widthAnchor.constraint(equalToConstant: 180),
             searchField.widthAnchor.constraint(equalToConstant: 280),
 
-            dashboard.leadingAnchor.constraint(equalTo: top.leadingAnchor),
-            dashboard.trailingAnchor.constraint(equalTo: top.trailingAnchor),
-            dashboard.topAnchor.constraint(equalTo: top.bottomAnchor, constant: 24),
+            libraryMainRow.leadingAnchor.constraint(equalTo: top.leadingAnchor),
+            libraryMainRow.trailingAnchor.constraint(equalTo: top.trailingAnchor),
+            libraryMainRow.topAnchor.constraint(equalTo: top.bottomAnchor, constant: 24),
+            libraryMainRow.bottomAnchor.constraint(equalTo: libraryPage.bottomAnchor, constant: -34),
+
             dashboard.heightAnchor.constraint(equalToConstant: 290),
 
-            libraryContent.leadingAnchor.constraint(equalTo: top.leadingAnchor),
-            libraryContent.trailingAnchor.constraint(equalTo: top.trailingAnchor),
-            libraryContent.topAnchor.constraint(equalTo: dashboard.bottomAnchor, constant: 18),
-            libraryContent.bottomAnchor.constraint(equalTo: libraryPage.bottomAnchor, constant: -34)
+            libraryQueuePanel.heightAnchor.constraint(equalTo: libraryLeftColumn.heightAnchor)
         ])
     }
 
     func configureNowCard() {
         nowCard.applyCardStyle(cornerRadius: 10)
         nowCard.applyBackground(Theme.nowPlayingBackground)
-        nowCover.image = UIHelpers.placeholderArtwork(size: 112)
+        nowCard.translatesAutoresizingMaskIntoConstraints = false
+        nowCover.image = UIHelpers.placeholderArtwork(size: 58)
         nowCover.imageScaling = .scaleAxesIndependently
         nowCover.wantsLayer = true
         nowCover.layer?.cornerRadius = 8
         nowCover.layer?.masksToBounds = true
 
-        nowTitle.font = .systemFont(ofSize: 18, weight: .bold)
+        nowTitle.font = .systemFont(ofSize: 13, weight: .semibold)
         nowTitle.textColor = Theme.text
-        nowArtist.font = .systemFont(ofSize: 13)
+        nowTitle.lineBreakMode = .byTruncatingTail
+        nowArtist.font = .systemFont(ofSize: 12)
         nowArtist.textColor = Theme.secondaryText
+        nowArtist.lineBreakMode = .byTruncatingTail
         [miniCurrentTime, miniDuration].forEach {
-            $0.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+            $0.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
             $0.textColor = Theme.secondaryText
+            $0.alignment = .center
         }
 
         let meta = NSStackView(views: [nowTitle, nowArtist])
         meta.orientation = .vertical
-        meta.spacing = 6
+        meta.spacing = 4
+        let top = NSStackView(views: [nowCover, meta])
+        top.orientation = .horizontal
+        top.alignment = .centerY
+        top.spacing = 12
         let progress = NSStackView(views: [miniCurrentTime, miniSeek, miniDuration])
         progress.orientation = .horizontal
         progress.alignment = .centerY
         progress.spacing = 8
-        let right = NSStackView(views: [meta, progress])
-        right.orientation = .vertical
-        right.spacing = 20
-        let row = NSStackView(views: [nowCover, right])
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 16
-        row.translatesAutoresizingMaskIntoConstraints = false
-        nowCard.addSubview(row)
+        let stack = NSStackView(views: [top, progress])
+        stack.orientation = .vertical
+        stack.spacing = 12
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        nowCard.addSubview(stack)
 
         NSLayoutConstraint.activate([
-            nowCover.widthAnchor.constraint(equalToConstant: 112),
-            nowCover.heightAnchor.constraint(equalToConstant: 112),
-            miniCurrentTime.widthAnchor.constraint(equalToConstant: 42),
-            miniDuration.widthAnchor.constraint(equalToConstant: 42),
-            row.leadingAnchor.constraint(equalTo: nowCard.leadingAnchor, constant: 12),
-            row.trailingAnchor.constraint(equalTo: nowCard.trailingAnchor, constant: -12),
-            row.topAnchor.constraint(equalTo: nowCard.topAnchor, constant: 12),
-            row.bottomAnchor.constraint(equalTo: nowCard.bottomAnchor, constant: -12)
+            nowCard.heightAnchor.constraint(equalToConstant: 150),
+            nowCover.widthAnchor.constraint(equalToConstant: 58),
+            nowCover.heightAnchor.constraint(equalToConstant: 58),
+            miniCurrentTime.widthAnchor.constraint(equalToConstant: 38),
+            miniDuration.widthAnchor.constraint(equalToConstant: 38),
+            stack.leadingAnchor.constraint(equalTo: nowCard.leadingAnchor, constant: 14),
+            stack.trailingAnchor.constraint(equalTo: nowCard.trailingAnchor, constant: -14),
+            stack.topAnchor.constraint(equalTo: nowCard.topAnchor, constant: 14),
+            stack.bottomAnchor.constraint(equalTo: nowCard.bottomAnchor, constant: -14)
         ])
 
         nowCard.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(openPlayerFromCurrent)))
+        nowCover.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(openPlayerFromCurrent)))
+        nowTitle.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(openPlayerFromCurrent)))
     }
 
     func buildFoldersPage() {
@@ -399,13 +411,15 @@ extension AppDelegate {
         backButton.contentTintColor = Theme.accent
         backButton.translatesAutoresizingMaskIntoConstraints = false
 
-        let albumPanel = NSStackView()
+        playerAlbumPanel = NSStackView()
+        let albumPanel = playerAlbumPanel!
         albumPanel.orientation = .vertical
         albumPanel.alignment = .centerX
         albumPanel.spacing = 18
         albumPanel.applyCardStyle(cornerRadius: 12)
         albumPanel.applyBackground(Theme.nowPlayingBackground)
         albumPanel.translatesAutoresizingMaskIntoConstraints = false
+        albumPanel.setContentHuggingPriority(.required, for: .horizontal)
 
         detailCover.image = UIHelpers.placeholderArtwork(size: 360)
         detailCover.imageScaling = .scaleAxesIndependently
@@ -446,45 +460,63 @@ extension AppDelegate {
         configureStack(pendingTrackStack)
         playerQueuePanel.addArrangedSubview(UIHelpers.scrollView(containing: pendingTrackStack))
         playerQueuePanel.isHidden = true
+        playerQueuePanel.setContentHuggingPriority(.required, for: .horizontal)
         playerQueueWidthConstraint = playerQueuePanel.widthAnchor.constraint(equalToConstant: 280)
 
         playerLyricsPanel = makePanel(title: "歌词", trailing: lyricsStatus)
         configureStack(lyricsStack)
         playerLyricsPanel.addArrangedSubview(UIHelpers.scrollView(containing: lyricsStack))
+        playerLyricsPanel.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         configureQueueButton(playerQueueButton)
-        let rightColumn = NSStackView(views: [playerQueuePanel, playerQueueButton, playerLyricsPanel])
-        rightColumn.orientation = .horizontal
-        rightColumn.alignment = .centerY
-        rightColumn.spacing = 12
-        rightColumn.translatesAutoresizingMaskIntoConstraints = false
+        let playerHeader = NSStackView(views: [backButton, NSView(), playerQueueButton])
+        playerHeader.orientation = .horizontal
+        playerHeader.alignment = .centerY
+        playerHeader.spacing = 12
+        playerHeader.translatesAutoresizingMaskIntoConstraints = false
 
-        playerPage.addSubview(backButton)
-        playerPage.addSubview(albumPanel)
-        playerPage.addSubview(rightColumn)
+        let playerContent = NSStackView(views: [albumPanel, playerLyricsPanel, playerQueuePanel])
+        playerContent.orientation = .horizontal
+        playerContent.spacing = 18
+        playerContent.alignment = .top
+        playerContent.translatesAutoresizingMaskIntoConstraints = false
+
+        playerPage.addSubview(playerHeader)
+        playerPage.addSubview(playerContent)
+
+        playerAlbumWidthConstraint = albumPanel.widthAnchor.constraint(equalTo: playerPage.widthAnchor, multiplier: 0.42)
 
         NSLayoutConstraint.activate([
-            backButton.leadingAnchor.constraint(equalTo: playerPage.leadingAnchor, constant: 34),
-            backButton.topAnchor.constraint(equalTo: playerPage.topAnchor, constant: 28),
+            playerHeader.leadingAnchor.constraint(equalTo: playerPage.leadingAnchor, constant: 34),
+            playerHeader.trailingAnchor.constraint(equalTo: playerPage.trailingAnchor, constant: -34),
+            playerHeader.topAnchor.constraint(equalTo: playerPage.topAnchor, constant: 28),
 
-            albumPanel.leadingAnchor.constraint(equalTo: playerPage.leadingAnchor, constant: 34),
-            albumPanel.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 12),
-            albumPanel.bottomAnchor.constraint(equalTo: playerPage.bottomAnchor, constant: -34),
-            albumPanel.widthAnchor.constraint(equalTo: playerPage.widthAnchor, multiplier: 0.42),
+            playerContent.leadingAnchor.constraint(equalTo: playerPage.leadingAnchor, constant: 34),
+            playerContent.trailingAnchor.constraint(equalTo: playerPage.trailingAnchor, constant: -34),
+            playerContent.topAnchor.constraint(equalTo: playerHeader.bottomAnchor, constant: 12),
+            playerContent.bottomAnchor.constraint(equalTo: playerPage.bottomAnchor, constant: -34),
 
-            detailCover.widthAnchor.constraint(equalToConstant: 360),
-            detailCover.heightAnchor.constraint(equalToConstant: 360),
+            playerAlbumWidthConstraint,
+
+            detailCover.widthAnchor.constraint(equalTo: albumPanel.widthAnchor, constant: -56),
+            detailCover.heightAnchor.constraint(equalTo: detailCover.widthAnchor),
             seek.widthAnchor.constraint(equalTo: albumPanel.widthAnchor, constant: -56),
             currentTime.widthAnchor.constraint(equalToConstant: 42),
             durationTime.widthAnchor.constraint(equalToConstant: 42),
 
-            rightColumn.leadingAnchor.constraint(equalTo: albumPanel.trailingAnchor, constant: 22),
-            rightColumn.trailingAnchor.constraint(equalTo: playerPage.trailingAnchor, constant: -34),
-            rightColumn.topAnchor.constraint(equalTo: albumPanel.topAnchor),
-            rightColumn.bottomAnchor.constraint(equalTo: albumPanel.bottomAnchor),
-            playerQueueButton.widthAnchor.constraint(equalToConstant: 36),
-            playerQueuePanel.heightAnchor.constraint(equalTo: rightColumn.heightAnchor)
+            playerQueuePanel.heightAnchor.constraint(equalTo: playerContent.heightAnchor),
+            playerLyricsPanel.heightAnchor.constraint(equalTo: playerContent.heightAnchor)
         ])
+    }
+
+    func updatePlayerAlbumWidth() {
+        playerAlbumWidthConstraint.isActive = false
+        let multiplier: CGFloat = isQueueSidebarVisible ? 0.30 : 0.42
+        playerAlbumWidthConstraint = playerAlbumPanel.widthAnchor.constraint(
+            equalTo: playerPage.widthAnchor,
+            multiplier: multiplier
+        )
+        playerAlbumWidthConstraint.isActive = true
     }
 
     func addPage(_ page: NSView) {

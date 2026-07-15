@@ -183,7 +183,7 @@ enum FLACMetadataReader {
             case 4:
                 let comments = parseVorbisComments(block)
                 metadata.title = comments["TITLE"]?.nonEmpty
-                metadata.artist = (comments["ARTIST"] ?? comments["ALBUMARTIST"])?.nonEmpty
+                metadata.artist = (comments["ARTIST"] ?? comments["ALBUMARTIST"] ?? comments["PERFORMER"])?.nonEmpty
                 metadata.lyrics = lyricValue(from: comments)
                 if metadata.artwork == nil, let encodedPicture = comments["METADATA_BLOCK_PICTURE"],
                    let pictureData = Data(base64Encoded: encodedPicture) {
@@ -220,7 +220,7 @@ enum FLACMetadataReader {
     }
 
     private static func lyricValue(from comments: [String: String]) -> String? {
-        ["LYRICS", "UNSYNCEDLYRICS", "UNSYNCED LYRICS", "LYRIC", "COMMENT"]
+        ["LYRICS", "UNSYNCEDLYRICS", "UNSYNCED LYRICS", "SYNCEDLYRICS", "LYRIC", "COMMENT"]
             .compactMap { comments[$0]?.nonEmpty }
             .first
     }
@@ -233,8 +233,9 @@ enum FLACMetadataReader {
         offset += mimeLength
         guard let descriptionLength = bigEndianUInt32(data, offset: &offset), offset + descriptionLength <= data.count else { return nil }
         offset += descriptionLength
-        // 宽、高、色深、颜色数。
-        for _ in 0..<4 where bigEndianUInt32(data, offset: &offset) == nil { return nil }
+        for _ in 0..<4 {
+            guard bigEndianUInt32(data, offset: &offset) != nil else { return nil }
+        }
         guard let imageLength = bigEndianUInt32(data, offset: &offset), offset + imageLength <= data.count else { return nil }
         return NSImage(data: data.subdata(in: offset..<(offset + imageLength)))
     }
