@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let foldersPage = NSView()
     let playlistsPage = NSView()
     let playerPage = NSView()
+    var currentPage: NSView?
     var pageConstraints: [ObjectIdentifier: [NSLayoutConstraint]] = [:]
 
     let libraryButton = NSButton(title: AppText.sidebarLibrary, target: nil, action: nil)
@@ -144,6 +145,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         loadPlaylists()
         showPage(libraryPage)
         scanFolders()
+        // 2. 👈 【新增】此时 tracks 已经从本地文件夹加载完毕，立刻恢复上一次的待播清单
+        restorePlaybackQueue()
         showMainWindow()
     }
 

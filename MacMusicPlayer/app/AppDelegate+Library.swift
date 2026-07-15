@@ -81,19 +81,24 @@ extension AppDelegate {
     }
 
     func showPage(_ page: NSView) {
-        for view in [libraryPage, foldersPage, playlistsPage, playerPage] {
-            let constraints = pageConstraints[ObjectIdentifier(view)] ?? []
-            if view === page {
-                NSLayoutConstraint.activate(constraints)
-                view.isHidden = false
-            } else {
-                view.isHidden = true
-                NSLayoutConstraint.deactivate(constraints)
+        // 记录当前页面
+        self.currentPage = page
+
+            for view in [libraryPage, foldersPage, playlistsPage, playerPage] {
+                let constraints = pageConstraints[ObjectIdentifier(view)] ?? []
+                    if view === page {
+                        NSLayoutConstraint.activate(constraints)
+                            view.isHidden = false
+                    } else {
+                        view.isHidden = true
+                            NSLayoutConstraint.deactivate(constraints)
+                    }
             }
-        }
         libraryButton.state = page === libraryPage ? .on : .off
-        foldersButton.state = page === foldersPage ? .on : .off
-        playlistsButton.state = page === playlistsPage ? .on : .off
+            foldersButton.state = page === foldersPage ? .on : .off
+            playlistsButton.state = page === playlistsPage ? .on : .off
+
+            // 👈 确保这里没有任何 window.setFrame(...) 的调用！
     }
 
     @objc func addFolders() {
@@ -290,22 +295,42 @@ extension AppDelegate {
         selectedTrackIDs.removeAll()
         isSelectingTracks = false
         renderTracks()
+        savePlaybackQueue() // 👈 【新增】保存状态
     }
 
     @objc func toggleQueueSidebar() {
-        isQueueSidebarVisible.toggle()
-        libraryQueuePanel.isHidden = !isQueueSidebarVisible
-        playerQueuePanel.isHidden = !isQueueSidebarVisible
-        libraryQueueWidthConstraint.isActive = isQueueSidebarVisible
-        playerQueueWidthConstraint.isActive = isQueueSidebarVisible
-        updatePlayerAlbumWidth()
-        let tip = isQueueSidebarVisible ? "隐藏待播清单" : "显示待播清单"
-        [libraryQueueButton, playerQueueButton].forEach { $0.toolTip = tip }
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.2
-            context.allowsImplicitAnimation = true
-            window.layoutIfNeeded()
-        }
+        // 1. 根据当前正在展示的页面，动态决定操作哪一个侧边栏及约束
+        let queuePanel: NSStackView
+            let widthConstraint: NSLayoutConstraint
+
+            if currentPage == playerPage {
+                queuePanel = playerQueuePanel
+                    widthConstraint = playerQueueWidthConstraint
+            } else {
+                // 主资料库页对应的待播清单面板与约束
+                queuePanel = libraryQueuePanel
+                    widthConstraint = libraryQueueWidthConstraint
+            }
+
+        let isCurrentlyHidden = queuePanel.isHidden
+
+            // 2. 执行展开/收起动画
+            NSAnimationContext.runAnimationGroup({ context in
+                    context.duration = 0.25
+                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+
+                    if isCurrentlyHidden {
+                    queuePanel.isHidden = false
+                    widthConstraint.constant = 280 // 展开时的宽度
+                    } else {
+                    widthConstraint.constant = 0 // 收起
+                    }
+                    self.window.contentView?.layoutSubtreeIfNeeded()
+                    }, completionHandler: {
+                    if !isCurrentlyHidden {
+                    queuePanel.isHidden = true
+                    }
+                    })
     }
 
     @objc func removeFolder(_ sender: NSButton) {

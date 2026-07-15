@@ -171,11 +171,13 @@ extension AppDelegate {
         top.translatesAutoresizingMaskIntoConstraints = false
         libraryPage.addSubview(top)
 
-        let nowPanel = makePanel(title: "当前播放", trailing: statusLabel)
-        configureNowCard()
-        nowPanel.addArrangedSubview(nowCard)
 
         let recentPanel = makePanel(title: "最近播放", trailing: makeSmallButton("清空", action: #selector(clearRecent)))
+        for row in recentStack.arrangedSubviews {
+            if let constraint = row.constraints.first(where: { $0.firstAttribute == .height }) {
+                constraint.constant = 36 // 从原先可能较大的高度缩减至 36
+            }
+        }
         configureStack(recentStack)
         recentPanel.addArrangedSubview(recentStack)
 
@@ -201,7 +203,7 @@ extension AppDelegate {
         libraryQueuePanel.isHidden = true
         libraryQueueWidthConstraint = libraryQueuePanel.widthAnchor.constraint(equalToConstant: 280)
 
-        let dashboard = NSStackView(views: [recentPanel, nowPanel])
+        let dashboard = NSStackView(views: [recentPanel])
         dashboard.orientation = .horizontal
         dashboard.spacing = 18
         dashboard.distribution = .fillEqually
@@ -420,6 +422,7 @@ extension AppDelegate {
         albumPanel.applyBackground(Theme.nowPlayingBackground)
         albumPanel.translatesAutoresizingMaskIntoConstraints = false
         albumPanel.setContentHuggingPriority(.required, for: .horizontal)
+        albumPanel.edgeInsets = NSEdgeInsets(top: 30, left: 28, bottom: 30, right: 28)
 
         detailCover.image = UIHelpers.placeholderArtwork(size: 360)
         detailCover.imageScaling = .scaleAxesIndependently
@@ -493,7 +496,7 @@ extension AppDelegate {
 
             playerContent.leadingAnchor.constraint(equalTo: playerPage.leadingAnchor, constant: 34),
             playerContent.trailingAnchor.constraint(equalTo: playerPage.trailingAnchor, constant: -34),
-            playerContent.topAnchor.constraint(equalTo: playerHeader.bottomAnchor, constant: 12),
+            playerContent.topAnchor.constraint(equalTo: playerHeader.bottomAnchor, constant: 36),
             playerContent.bottomAnchor.constraint(equalTo: playerPage.bottomAnchor, constant: -34),
 
             playerAlbumWidthConstraint,

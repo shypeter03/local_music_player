@@ -18,22 +18,31 @@ extension AppDelegate {
             loadLyrics(for: track)
             updateCurrentUI()
             startTimer()
+
+            savePlaybackQueue()// 保存播放状态
         } catch {
             statusLabel.stringValue = AppText.playbackFailed
         }
     }
 
     @objc func togglePlay() {
+        // 如果当前已经有静默加载好的歌曲（冷启动恢复的）
+        if let player = audioPlayer {
+            if player.isPlaying {
+                player.pause()
+            } else {
+                player.play()
+                    startTimer() // 启动进度条定时器
+            }
+            updatePlayButtons()
+                return
+        }
+
+        // 如果完全没有载入过歌曲，才默认播放第一首
         if audioPlayer == nil, let first = tracks.first {
             play(track: first, resetQueue: true)
-            return
+                return
         }
-        if audioPlayer?.isPlaying == true {
-            audioPlayer?.pause()
-        } else {
-            audioPlayer?.play()
-        }
-        updatePlayButtons()
     }
 
     @objc func playPrevious() {
@@ -84,6 +93,7 @@ extension AppDelegate {
         playbackHistory = []
         reorderPendingQueue()
         renderPendingQueue()
+        savePlaybackQueue() 
     }
 
     /// 将歌曲追加到当前待播队列，不改变正在播放的歌曲或既有顺序。
@@ -301,6 +311,64 @@ extension AppDelegate {
                 row.configure(track: track, index: index + 1, active: track.id == currentTrack?.id)
                 stack.addArrangedSubview(row)
             }
+        }
+    }
+    
+    /// 保存当前的待播清单 ID 列表
+    func savePlaybackQueue() {
+        let queueIDs = playbackQueue.map { $0.id }
+        UserDefaults.standard.set(queueIDs, forKey: "savedPlaybackQueueIDs")
+        
+        // 顺便记录当前播放的那首歌的 ID
+        if let currentID = currentTrack?.id {
+            UserDefaults.standard.set(currentID, forKey: "savedCurrentTrackID")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "savedCurrentTrackID")
+        }
+    }
+    
+    /// 恢复上一次保存的待播清单
+    func restorePlaybackQueue() {
+        guard let savedIDs = UserDefaults.standard.stringArray(forKey: "savedPlaybackQueueIDs"),
+              !savedIDs.isEmpty else { 
+            return 
+        }
+        
+        // 从全局的 tracks 库中恢复对应的 Track 对象
+        let restoredQueue = savedIDs.compactMap { id in
+            tracks.first(where: { $0.id == id })
+        }
+        
+        if !restoredQueue.isEmpty {
+            self.playbackQueue = restoredQueue
+            
+            // 尝试恢复上一次播放的歌曲，如果找不到，就默认用待播清单的第一首
+            let savedCurrentID = UserDefaults.standard.string(forKey: "savedCurrentTrackID")
+            let targetTrack = restoredQueue.first(where: { $0.id == savedCurrentID }) ?? restoredQueue.first
+            
+            if let trackToLoad = targetTrack {
+                // 【核心】：仅加载到播放器并准备（Prepare），不调用 .play() 保持暂停
+                loadTrackWithoutPlaying(trackToLoad)
+            }
+        }
+    }
+    
+    /// 将一首歌静默加载到 miniplayer，准备好播放状态但不直接播放（保持暂停）
+    func loadTrackWithoutPlaying(_ track: Track) {
+        do {
+            audioPlayer = try AVAudioPlayer(contentsOf: track.url)
+            audioPlayer?.prepareToPlay() // 仅准备，不 play()
+            
+            currentTrack = track
+            currentIndex = playbackQueue.firstIndex(where: { $0.id == track.id }) ?? -1
+            isAdvancingAtEnd = false
+            
+            // 加载歌词与更新 UI（这时播放按钮应该显示为“播放”图标，而不是“暂停”图标）
+            loadLyrics(for: track)
+            updateCurrentUI()
+            updatePlayButtons() // 确保按钮状态是“暂停/未播放”
+        } catch {
+            print("静默载入歌曲失败: \(error)")
         }
     }
 }
