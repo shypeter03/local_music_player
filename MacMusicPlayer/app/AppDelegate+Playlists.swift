@@ -27,8 +27,8 @@ extension AppDelegate {
     func renderSelectedPlaylistTracks() {
         UIHelpers.clear(playlistTrackStack)
         guard let playlist = selectedPlaylist() else {
-            selectedPlaylistTitle.stringValue = "选择一个播放列表"
-            selectedPlaylistCountLabel.stringValue = "0 首"
+            selectedPlaylistTitle.stringValue = AppText.selectPlaylist
+            selectedPlaylistCountLabel.stringValue = AppText.trackCount(0)
             playlistTrackStack.addArrangedSubview(UIHelpers.emptyLabel("在左侧选择一个播放列表查看歌曲。"))
             deletePlaylistButton.isEnabled = false
             updatePlaylistSelectionControls()
@@ -39,7 +39,7 @@ extension AppDelegate {
         let playlistTracks = PlaylistHelpers.deduplicatedTrackIDs(playlist.trackIDs, tracks: tracks)
             .compactMap { id in tracks.first(where: { $0.id == id }) }
         selectedPlaylistTitle.stringValue = playlist.name
-        selectedPlaylistCountLabel.stringValue = "\(playlistTracks.count) 首"
+        selectedPlaylistCountLabel.stringValue = AppText.trackCount(playlistTracks.count)
         updatePlaylistSelectionControls()
         if playlistTracks.isEmpty {
             playlistTrackStack.addArrangedSubview(UIHelpers.emptyLabel("这个播放列表还没有可用歌曲。可在音乐列表中选择歌曲加入。"))
@@ -156,8 +156,8 @@ extension AppDelegate {
     }
 
     func updatePlaylistSelectionControls() {
-        selectPlaylistTracksButton.title = isSelectingPlaylistTracks ? "完成" : "选择"
-        playlistSelectionStatusLabel.stringValue = isSelectingPlaylistTracks ? "已选择 \(selectedPlaylistTrackIDs.count) 首" : "未选择"
+        selectPlaylistTracksButton.title = isSelectingPlaylistTracks ? AppText.done : AppText.select
+        playlistSelectionStatusLabel.stringValue = isSelectingPlaylistTracks ? AppText.selectedCount(selectedPlaylistTrackIDs.count) : AppText.noSelection
         removeSelectedPlaylistTracksButton.isEnabled = isSelectingPlaylistTracks && !selectedPlaylistTrackIDs.isEmpty
     }
 

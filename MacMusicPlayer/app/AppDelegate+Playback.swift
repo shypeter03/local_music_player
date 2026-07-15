@@ -19,7 +19,7 @@ extension AppDelegate {
             updateCurrentUI()
             startTimer()
         } catch {
-            statusLabel.stringValue = "播放失败"
+            statusLabel.stringValue = AppText.playbackFailed
         }
     }
 
@@ -224,8 +224,8 @@ extension AppDelegate {
 
     func updateProgress() {
         guard let player = audioPlayer else {
-            [currentTime, miniCurrentTime, sideCurrentTime].forEach { $0.stringValue = "0:00" }
-            [durationTime, miniDuration, sideDuration].forEach { $0.stringValue = "0:00" }
+            [currentTime, miniCurrentTime, sideCurrentTime].forEach { $0.stringValue = AppText.zeroDuration }
+            [durationTime, miniDuration, sideDuration].forEach { $0.stringValue = AppText.zeroDuration }
             [seekBar, miniSeek, sideSeek].forEach { $0.doubleValue = 0 }
             return
         }
@@ -244,13 +244,17 @@ extension AppDelegate {
     func loadLyrics(for track: Track) {
         lyrics = []
         UIHelpers.clear(lyricsStack)
-        guard let url = track.lyricURL, let text = try? String(contentsOf: url) else {
-            lyricsStatus.stringValue = "未找到同名 .lrc"
-            lyricsStack.addArrangedSubview(UIHelpers.emptyLabel("将同名 .lrc 文件放在歌曲旁边即可显示歌词。"))
+        let externalLyrics = track.lyricURL.flatMap { try? String(contentsOf: $0) }
+        guard let text = externalLyrics ?? track.embeddedLyrics else {
+            lyricsStatus.stringValue = AppText.noLyrics
+            lyricsStack.addArrangedSubview(UIHelpers.emptyLabel(AppText.lyricsExternalHint))
             return
         }
         lyrics = LyricParser.parseLRC(text)
-        lyricsStatus.stringValue = lyrics.isEmpty ? "歌词文件为空" : "\(lyrics.count) 行歌词"
+        if lyrics.isEmpty, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lyrics = [LyricLine(time: 0, text: text)]
+        }
+        lyricsStatus.stringValue = lyrics.isEmpty ? AppText.lyricsFileEmpty : "\(lyrics.count) 行歌词"
         lyricLabels = lyrics.map {
             let label = NSTextField(labelWithString: $0.text)
             label.font = .systemFont(ofSize: 17, weight: .regular)
@@ -281,12 +285,12 @@ extension AppDelegate {
     }
 
     func renderPendingQueue() {
-        pendingCountLabel.stringValue = "\(playbackQueue.count) 首"
-        libraryPendingCountLabel.stringValue = "\(playbackQueue.count) 首"
+        pendingCountLabel.stringValue = AppText.trackCount(playbackQueue.count)
+        libraryPendingCountLabel.stringValue = AppText.trackCount(playbackQueue.count)
         UIHelpers.clear(pendingTrackStack)
         UIHelpers.clear(libraryPendingTrackStack)
         if playbackQueue.isEmpty {
-            let text = "从歌曲列表或播放列表开始播放后，将在这里显示待播歌曲。"
+            let text = AppText.emptyQueueTip
             pendingTrackStack.addArrangedSubview(UIHelpers.emptyLabel(text))
             libraryPendingTrackStack.addArrangedSubview(UIHelpers.emptyLabel(text))
             return

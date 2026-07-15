@@ -142,7 +142,7 @@ extension AppDelegate {
         applySearch()
         renderFolders()
         renderPlaylists()
-        statusLabel.stringValue = tracks.isEmpty ? "没有扫描到音乐" : "已载入 \(tracks.count) 首"
+        statusLabel.stringValue = tracks.isEmpty ? "没有扫描到音乐" : AppText.loadedTrackCount(tracks.count)
     }
 
     private func migratePlaylistsAfterScan() {
@@ -199,11 +199,11 @@ extension AppDelegate {
     }
 
     func renderTracks() {
-        libraryCountLabel.stringValue = "\(filteredTracks.count) 首"
+        libraryCountLabel.stringValue = AppText.trackCount(filteredTracks.count)
         updateSelectionControls()
         UIHelpers.clear(trackStack)
         if filteredTracks.isEmpty {
-            trackStack.addArrangedSubview(UIHelpers.emptyLabel("还没有音乐。前往“文件夹”页面选择本地或 iCloud 文件夹。"))
+            trackStack.addArrangedSubview(UIHelpers.emptyLabel(AppText.noMusics))
             return
         }
         for (index, track) in filteredTracks.enumerated() {
@@ -277,8 +277,8 @@ extension AppDelegate {
     }
 
     func updateSelectionControls() {
-        selectTracksButton.title = isSelectingTracks ? "完成" : "选择"
-        selectionStatusLabel.stringValue = isSelectingTracks ? "已选择 \(selectedTrackIDs.count) 首" : "未选择"
+        selectTracksButton.title = isSelectingTracks ? AppText.done : AppText.select
+        selectionStatusLabel.stringValue = isSelectingTracks ? AppText.selectedCount(selectedTrackIDs.count) : AppText.noSelection
         addSelectedButton.isEnabled = isSelectingTracks && !selectedTrackIDs.isEmpty
         enqueueSelectedButton.isEnabled = isSelectingTracks && !selectedTrackIDs.isEmpty
     }

@@ -125,21 +125,132 @@ enum TrackScanner {
 
         return audioURLs.map { fileURL in
             let parsed = parseName(fileURL.deletingPathExtension().lastPathComponent)
+            let flacMetadata = fileURL.pathExtension.lowercased() == "flac" ? FLACMetadataReader.read(from: fileURL) : nil
+            let title = flacMetadata?.title?.nonEmpty ?? parsed.title
+            let artist = flacMetadata?.artist?.nonEmpty ?? parsed.artist
             let base = fileURL.deletingPathExtension().path.lowercased()
             let folderPath = fileURL.deletingLastPathComponent().path.lowercased()
             return Track(
-                id: Track.stableID(artist: parsed.artist, title: parsed.title),
+                id: Track.stableID(artist: artist, title: title),
                 folderID: folder.id,
                 url: fileURL,
                 folderURL: url,
-                title: parsed.title,
-                artist: parsed.artist,
+                title: title,
+                artist: artist,
                 ext: fileURL.pathExtension,
                 artworkURL: imageByBase[base] ?? coverByFolder[folderPath],
                 lyricURL: lyricByBase[base],
-                embeddedArtwork: ArtworkLoader.loadEmbedded(from: fileURL)
+                embeddedArtwork: flacMetadata?.artwork ?? ArtworkLoader.loadEmbedded(from: fileURL),
+                embeddedLyrics: flacMetadata?.lyrics
             )
         }
+    }
+}
+
+private extension String {
+    var nonEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+/// 读取 FLAC 原生元数据块：Vorbis Comment 中的演唱者/歌词，以及 Picture 中的封面。
+enum FLACMetadataReader {
+    struct Metadata {
+        var title: String?
+        var artist: String?
+        var lyrics: String?
+        var artwork: NSImage?
+    }
+
+    static func read(from url: URL) -> Metadata? {
+        guard let data = try? Data(contentsOf: url), data.count >= 4,
+              String(data: data.prefix(4), encoding: .ascii) == "fLaC"
+        else { return nil }
+
+        var metadata = Metadata()
+        var offset = 4
+        var isLast = false
+        while !isLast, offset + 4 <= data.count {
+            let header = data[offset]
+            isLast = (header & 0x80) != 0
+            let type = header & 0x7F
+            let length = Int(data[offset + 1]) << 16 | Int(data[offset + 2]) << 8 | Int(data[offset + 3])
+            offset += 4
+            guard length >= 0, offset + length <= data.count else { break }
+            let block = data.subdata(in: offset..<(offset + length))
+            switch type {
+            case 4:
+                let comments = parseVorbisComments(block)
+                metadata.title = comments["TITLE"]?.nonEmpty
+                metadata.artist = (comments["ARTIST"] ?? comments["ALBUMARTIST"])?.nonEmpty
+                metadata.lyrics = lyricValue(from: comments)
+                if metadata.artwork == nil, let encodedPicture = comments["METADATA_BLOCK_PICTURE"],
+                   let pictureData = Data(base64Encoded: encodedPicture) {
+                    metadata.artwork = parsePicture(pictureData)
+                }
+            case 6:
+                metadata.artwork = metadata.artwork ?? parsePicture(block)
+            default:
+                break
+            }
+            offset += length
+        }
+        return metadata
+    }
+
+    private static func parseVorbisComments(_ data: Data) -> [String: String] {
+        var offset = 0
+        guard let vendorLength = littleEndianUInt32(data, offset: &offset),
+              vendorLength >= 0, offset + vendorLength <= data.count
+        else { return [:] }
+        offset += vendorLength
+        guard let count = littleEndianUInt32(data, offset: &offset) else { return [:] }
+        var result: [String: String] = [:]
+        for _ in 0..<count {
+            guard let length = littleEndianUInt32(data, offset: &offset), offset + length <= data.count else { break }
+            let item = String(data: data.subdata(in: offset..<(offset + length)), encoding: .utf8)
+            offset += length
+            guard let item, let separator = item.firstIndex(of: "=") else { continue }
+            let key = String(item[..<separator]).uppercased()
+            let value = String(item[item.index(after: separator)...])
+            if result[key] == nil { result[key] = value }
+        }
+        return result
+    }
+
+    private static func lyricValue(from comments: [String: String]) -> String? {
+        ["LYRICS", "UNSYNCEDLYRICS", "UNSYNCED LYRICS", "LYRIC", "COMMENT"]
+            .compactMap { comments[$0]?.nonEmpty }
+            .first
+    }
+
+    private static func parsePicture(_ data: Data) -> NSImage? {
+        var offset = 0
+        guard bigEndianUInt32(data, offset: &offset) != nil,
+              let mimeLength = bigEndianUInt32(data, offset: &offset), offset + mimeLength <= data.count
+        else { return nil }
+        offset += mimeLength
+        guard let descriptionLength = bigEndianUInt32(data, offset: &offset), offset + descriptionLength <= data.count else { return nil }
+        offset += descriptionLength
+        // 宽、高、色深、颜色数。
+        for _ in 0..<4 where bigEndianUInt32(data, offset: &offset) == nil { return nil }
+        guard let imageLength = bigEndianUInt32(data, offset: &offset), offset + imageLength <= data.count else { return nil }
+        return NSImage(data: data.subdata(in: offset..<(offset + imageLength)))
+    }
+
+    private static func littleEndianUInt32(_ data: Data, offset: inout Int) -> Int? {
+        guard offset + 4 <= data.count else { return nil }
+        let value = Int(data[offset]) | Int(data[offset + 1]) << 8 | Int(data[offset + 2]) << 16 | Int(data[offset + 3]) << 24
+        offset += 4
+        return value
+    }
+
+    private static func bigEndianUInt32(_ data: Data, offset: inout Int) -> Int? {
+        guard offset + 4 <= data.count else { return nil }
+        let value = Int(data[offset]) << 24 | Int(data[offset + 1]) << 16 | Int(data[offset + 2]) << 8 | Int(data[offset + 3])
+        offset += 4
+        return value
     }
 }
 

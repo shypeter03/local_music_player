@@ -13,6 +13,7 @@ struct Track {
     let artworkURL: URL?
     let lyricURL: URL?
     let embeddedArtwork: NSImage?
+    let embeddedLyrics: String?
 
     var dedupeKey: String {
         Self.dedupeKey(artist: artist, title: title)

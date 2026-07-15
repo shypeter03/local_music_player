@@ -47,17 +47,7 @@ extension AppDelegate {
         brandIcon.image = UIHelpers.symbolImage("music.note", pointSize: 26, color: .white)
         brandIcon.applyBackground(Theme.accent)
 
-        let title = NSTextField(labelWithString: "本地音乐器")
-        title.font = .systemFont(ofSize: 20, weight: .bold)
-        title.textColor = Theme.text
-
-        let titleStack = NSStackView(views: [title])
-        titleStack.orientation = .vertical
-        titleStack.spacing = 2
-        let brand = NSStackView(views: [brandIcon, titleStack])
-        brand.orientation = .horizontal
-        brand.alignment = .centerY
-        brand.spacing = 14
+        let brand = brandIcon
 
         configureNavButton(libraryButton, image: "music.note.list")
         configureNavButton(foldersButton, image: "folder")
