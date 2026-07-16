@@ -4,6 +4,7 @@ enum AppText {
     // MARK: - 基础应用信息
     static let appName = "Ocean"
     static let exitApp = "退出Ocean"
+    static let empty = ""
     
     // MARK: - 侧边栏及导航
     static let sidebarLibrary = "  发 现"
@@ -21,8 +22,8 @@ enum AppText {
     static let playbackFailed = "播放失败"
     static let clearRecent = "清除最近播放"
     static let play = "播放"
-    static let removeSong = "移除歌曲"
-    static let noSelection = "未选择"
+    static let removeSong = "移除"
+    static let noSelection = "" //不要展示未选择,减少提示，所以这里置空
     static let done = "完成"
     static let findMusic = "发现"
     static let noSongPlaying = "还没有播放歌曲"
@@ -36,6 +37,8 @@ enum AppText {
     static let noPlaylists = "还没有歌单。点击“新建列表”创建一个。"
     static let selectPlaylist = "选择一个歌单"
     static let newPlaylist = "新建歌单"
+    static let playNext = "顺序播放"
+    static let playRandom = "随机播放"
     static let deletePlaylist = "删除"
     static let alertAddToPlaylistTitle = "加入歌单"
     static let alertAddToPlaylistMsg = "选择要加入的歌单。"

@@ -30,7 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let selectionStatusLabel = NSTextField(labelWithString: AppText.noSelection)
     let folderCountLabel = NSTextField(labelWithString: "0 个")
     let playlistCountLabel = NSTextField(labelWithString: "0 个")
-    let selectedPlaylistTitle = NSTextField(labelWithString: AppText.selectPlaylist)
+    // let selectedPlaylistTitle = NSTextField(labelWithString: AppText.selectPlaylist)
     let selectedPlaylistCountLabel = NSTextField(labelWithString: AppText.trackCount(0))
     let trackStack = NSStackView()
     let recentStack = NSStackView()
@@ -116,8 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var selectedPlaylistTrackIDs = Set<String>()
     var isSelectingPlaylistTracks = false
     var isQueueSidebarVisible = false
-    var isShuffleEnabled = UserDefaults.standard.bool(forKey: "shuffleEnabled")
-    var repeatMode: RepeatMode = .off
+    var repeatMode: RepeatMode = RepeatMode(rawValue: UserDefaults.standard.integer(forKey: "repeatMode")) ?? .off
     var isAdvancingAtEnd = false
     /// 队首始终是当前曲目；其余项目即为待播清单。
     var playbackQueue: [Track] = []

@@ -70,9 +70,7 @@ extension AppDelegate :AVAudioPlayerDelegate {
     }
 
     @objc func playNext() { 
-        print("<<<历史列表 \(playbackHistory)>>>")
-        // playbackHistory.append(track)
-        switch repeatMode {
+        switch self.repeatMode {
         case .all, .off,.one: // 🔁 列表循环 / 顺序播放
             self.playNextTrack()
         case .shuffle: // 🔀 随机播放
@@ -80,23 +78,17 @@ extension AppDelegate :AVAudioPlayerDelegate {
         }
     }
 
-    @objc func toggleShuffle() {
-        isShuffleEnabled.toggle()
-        UserDefaults.standard.set(isShuffleEnabled, forKey: "shuffleEnabled")
-        reorderPendingQueue()
-        updatePlaybackModeButtons()
-    }
 
     @objc func cycleRepeatMode() {
-        switch repeatMode {
+        switch self.repeatMode {
         case .off:
-            repeatMode = .all
+            self.repeatMode = .all
         case .all:
-            repeatMode = .one
+            self.repeatMode = .one
         case .one:
-            repeatMode = .off
-        default: // 🌟 安全兜底
-            repeatMode = .shuffle
+            self.repeatMode = .shuffle
+        case .shuffle: // 🌟 安全兜底
+            self.repeatMode = .off
         }
         updatePlaybackModeButtons()
     }
@@ -114,7 +106,6 @@ extension AppDelegate :AVAudioPlayerDelegate {
         }
         playbackQueue = Array(unique[index...]) + Array(unique[..<index])
         playbackHistory = []
-        reorderPendingQueue()
         renderPendingQueue()
         savePlaybackQueue() 
     }
@@ -127,15 +118,6 @@ extension AppDelegate :AVAudioPlayerDelegate {
         renderPendingQueue()
     }
 
-    /// 随机播放只重排尚未播放的歌曲，队首的当前歌曲不会变化。
-    func reorderPendingQueue() {
-        guard playbackQueue.count > 2 else { return }
-        let current = playbackQueue.removeFirst()
-        if isShuffleEnabled {
-            playbackQueue.shuffle()
-        }
-        playbackQueue.insert(current, at: 0)
-    }
 
     @objc func seekChanged(_ sender: NSSlider) {
         guard let player = audioPlayer, player.duration > 0 else { return }
@@ -178,35 +160,31 @@ extension AppDelegate :AVAudioPlayerDelegate {
     }
 
     func updatePlaybackModeButtons() {
-        // [shuffleButton, detailShuffleButton].forEach {
-        //     $0.image = UIHelpers.symbolImage(
-        //         "shuffle",
-        //         pointSize: 15,
-        //         color: isShuffleEnabled ? Theme.accent : Theme.secondaryText
-        //     )
-        //     $0.toolTip = isShuffleEnabled ? "随机播放已开启" : "随机播放"
-        //     $0.contentTintColor = isShuffleEnabled ? Theme.accent : Theme.secondaryText
-        // }
 
-        let repeatSymbol = repeatMode == .one ? "repeat.1" : "repeat"
-        let repeatColor: NSColor = repeatMode == .off ? Theme.secondaryText : Theme.accent
+        let repeatSymbol: String
+        let repeatColor: NSColor = self.repeatMode == .off ? Theme.secondaryText : Theme.accent
         let repeatTip: String
-        switch repeatMode {
+        switch self.repeatMode {
         case .off:
             repeatTip = "循环关闭"
+            repeatSymbol = "repeat"
         case .all:
             repeatTip = "列表循环"
+            repeatSymbol = "repeat"
         case .one:
             repeatTip = "单曲循环"
-        default: // 🌟 安全兜底
-            repeatTip = "xxxx"
+            repeatSymbol = "repeat.1"
+        case .shuffle: // 🌟 安全兜底
+            repeatTip = "随机播放"
+            repeatSymbol = "shuffle"
         }
         [repeatButton, detailRepeatButton].forEach {
             $0.image = UIHelpers.symbolImage(repeatSymbol, pointSize: 15, color: repeatColor)
             $0.toolTip = repeatTip
             $0.contentTintColor = repeatColor
         }
-        playbackOrderPopup.selectItem(at: isShuffleEnabled ? 1 : 0)
+
+        UserDefaults.standard.set(self.repeatMode.rawValue, forKey: "repeatMode")
     }
 
     func startTimer() {
@@ -500,6 +478,7 @@ extension AppDelegate :AVAudioPlayerDelegate {
             loadLyrics(for: track)
             updateCurrentUI()
             updatePlayButtons() // 确保按钮状态是“暂停/未播放”
+            updatePlaybackModeButtons()
         } catch {
             print("静默载入歌曲失败: \(error)")
         }
@@ -513,7 +492,7 @@ extension AppDelegate :AVAudioPlayerDelegate {
             print("🎵 歌曲播放完成，准备切换...")
             
             // 根据当前的播放模式来决定下一步
-            switch repeatMode {
+            switch self.repeatMode {
             case .one: // 🔂 单曲循环模式
                 self.handleSingleLoop()
             case .all, .off: // 🔁 列表循环 / 顺序播放

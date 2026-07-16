@@ -49,10 +49,6 @@ extension AppDelegate {
         nextButton.action = #selector(playNext)
         detailNextButton.target = self
         detailNextButton.action = #selector(playNext)
-        // shuffleButton.target = self
-        // shuffleButton.action = #selector(toggleShuffle)
-        // detailShuffleButton.target = self
-        // detailShuffleButton.action = #selector(toggleShuffle)
         repeatButton.target = self
         repeatButton.action = #selector(cycleRepeatMode)
         detailRepeatButton.target = self
@@ -307,12 +303,12 @@ extension AppDelegate {
         if currentPage == playerPage {
             queuePanel = playerQueuePanel
             widthConstraint = playerQueueWidthConstraint
-            targetWidth = playerPage.bounds.width * 0.25
+            targetWidth = playerPage.bounds.width * 0.33
 
         } else {
             // 主资料库页对应的待播清单面板与约束
             queuePanel = libraryQueuePanel
-            targetWidth = libraryPage.bounds.width * 0.3
+            targetWidth = libraryPage.bounds.width * 0.33
             widthConstraint = libraryQueueWidthConstraint
         }
 

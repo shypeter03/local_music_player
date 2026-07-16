@@ -9,7 +9,7 @@ extension AppDelegate {
             playlistStack.addArrangedSubview(UIHelpers.emptyLabel("还没有播放列表。点击“新建列表”创建一个。"))
         } else {
             for playlist in playlists {
-                let row = NSButton(title: "\(playlist.name) · \(playlist.trackIDs.count) 首", target: self, action: #selector(playlistClicked(_:)))
+                let row = NSButton(title: "\(playlist.name)", target: self, action: #selector(playlistClicked(_:)))
                 row.bezelStyle = .regularSquare
                 row.isBordered = false
                 row.alignment = .left
@@ -27,7 +27,7 @@ extension AppDelegate {
     func renderSelectedPlaylistTracks() {
         UIHelpers.clear(playlistTrackStack)
         guard let playlist = selectedPlaylist() else {
-            selectedPlaylistTitle.stringValue = AppText.selectPlaylist
+            // selectedPlaylistTitle.stringValue = AppText.selectPlaylist
             selectedPlaylistCountLabel.stringValue = AppText.trackCount(0)
             playlistTrackStack.addArrangedSubview(UIHelpers.emptyLabel("在左侧选择一个播放列表查看歌曲。"))
             deletePlaylistButton.isEnabled = false
@@ -38,7 +38,7 @@ extension AppDelegate {
         deletePlaylistButton.isEnabled = true
         let playlistTracks = PlaylistHelpers.deduplicatedTrackIDs(playlist.trackIDs, tracks: tracks)
             .compactMap { id in tracks.first(where: { $0.id == id }) }
-        selectedPlaylistTitle.stringValue = playlist.name
+        // selectedPlaylistTitle.stringValue = playlist.name
         selectedPlaylistCountLabel.stringValue = AppText.trackCount(playlistTracks.count)
         updatePlaylistSelectionControls()
         if playlistTracks.isEmpty {
@@ -121,9 +121,8 @@ extension AppDelegate {
     }
 
     @objc func playbackOrderChanged() {
-        isShuffleEnabled = playbackOrderPopup.indexOfSelectedItem == 1
-        UserDefaults.standard.set(isShuffleEnabled, forKey: "shuffleEnabled")
-        reorderPendingQueue()
+        let isShuffleEnabled = playbackOrderPopup.indexOfSelectedItem == 1
+        self.repeatMode = isShuffleEnabled ? .shuffle : .all
         updatePlaybackModeButtons()
     }
 
@@ -131,10 +130,11 @@ extension AppDelegate {
         guard let playlist = selectedPlaylist() else { return }
         let playlistTracks = PlaylistHelpers.deduplicatedTrackIDs(playlist.trackIDs, tracks: tracks)
             .compactMap { id in tracks.first(where: { $0.id == id }) }
-        guard let first = playlistTracks.first else { return }
+        let isShuffleEnabled = playbackOrderPopup.indexOfSelectedItem == 1
+        guard let first = isShuffleEnabled ? playlistTracks.randomElement() : playlistTracks.first else { return }
         resetPlaybackQueue(with: playlistTracks, startingAt: first)
         play(track: first, resetQueue: false)
-        showPage(playerPage)
+        playbackOrderChanged()
     }
 
     @objc func togglePlaylistTrackSelection() {

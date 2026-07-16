@@ -154,7 +154,7 @@ extension AppDelegate {
     func buildLibraryPage() {
         addPage(libraryPage)
 
-        let header = makeHeader(eyebrow: "", title: AppText.findMusic)
+        let header = makeHeader(eyebrow: AppText.empty, title: AppText.findMusic)
         searchField.placeholderString = AppText.librarySearchPlaceholder
         searchField.translatesAutoresizingMaskIntoConstraints = false
         folderFilterPopup.translatesAutoresizingMaskIntoConstraints = false
@@ -218,10 +218,6 @@ extension AppDelegate {
             libraryMainRow.bottomAnchor.constraint(equalTo: libraryPage.bottomAnchor, constant: -34)
 
         ])
-        print(libraryPanel.contentCompressionResistancePriority(for: .horizontal))
-        print(libraryQueuePanel.contentCompressionResistancePriority(for: .horizontal))
-        print(libraryPanel.contentHuggingPriority(for: .horizontal))
-        print(libraryQueuePanel.contentHuggingPriority(for: .horizontal))
     }
 
     func configureNowCard() {
@@ -329,12 +325,12 @@ extension AppDelegate {
     func buildPlaylistsPage() {
         addPage(playlistsPage)
 
-        let header = makeHeader(eyebrow: "Playlists", title: "播放列表")
+        let header = makeHeader(eyebrow: "-", title: AppText.newPlaylist)
         configurePrimaryButton(newPlaylistButton)
         deletePlaylistButton.bezelStyle = .rounded
         deletePlaylistButton.contentTintColor = Theme.destructive
-        playbackOrderPopup.addItems(withTitles: ["顺序播放", "随机播放"])
-        playbackOrderPopup.selectItem(at: isShuffleEnabled ? 1 : 0)
+        playbackOrderPopup.addItems(withTitles: [AppText.playNext, AppText.playRandom])
+        playbackOrderPopup.selectItem(at: self.repeatMode == .shuffle ? 1 : 0)
         playbackOrderPopup.bezelStyle = .rounded
         let actions = NSStackView(views: [playbackOrderPopup, playPlaylistButton, newPlaylistButton, deletePlaylistButton])
         actions.orientation = .horizontal
@@ -346,7 +342,7 @@ extension AppDelegate {
         top.distribution = .gravityAreas
         top.translatesAutoresizingMaskIntoConstraints = false
 
-        let listPanel = makePanel(title: "列表", trailing: playlistCountLabel)
+        let listPanel = makePanel(title: AppText.playlists, trailing: playlistCountLabel)
         configureStack(playlistStack)
         listPanel.addArrangedSubview(UIHelpers.scrollView(containing: playlistStack))
 
@@ -355,18 +351,18 @@ extension AppDelegate {
         removeSelectedPlaylistTracksButton.contentTintColor = Theme.destructive
         playlistSelectionStatusLabel.font = .systemFont(ofSize: 12)
         playlistSelectionStatusLabel.textColor = Theme.secondaryText
-        let titleStack = NSStackView(views: [selectedPlaylistTitle, selectedPlaylistCountLabel])
+        let titleStack = NSStackView(views: [ selectedPlaylistCountLabel])
         titleStack.orientation = .vertical
         titleStack.spacing = 2
-        selectedPlaylistTitle.font = .systemFont(ofSize: 16, weight: .bold)
-        selectedPlaylistTitle.textColor = Theme.text
+        // selectedPlaylistTitle.font = .systemFont(ofSize: 16, weight: .bold)
+        // selectedPlaylistTitle.textColor = Theme.text
         selectedPlaylistCountLabel.font = .systemFont(ofSize: 12)
         selectedPlaylistCountLabel.textColor = Theme.secondaryText
         let playlistTools = NSStackView(views: [playlistSelectionStatusLabel, selectPlaylistTracksButton, removeSelectedPlaylistTracksButton, titleStack])
         playlistTools.orientation = .horizontal
         playlistTools.alignment = .centerY
         playlistTools.spacing = 8
-        let tracksPanel = makePanel(title: "歌曲", trailing: playlistTools)
+        let tracksPanel = makePanel(title: AppText.empty, trailing: playlistTools)
         configureStack(playlistTrackStack)
         tracksPanel.addArrangedSubview(UIHelpers.scrollView(containing: playlistTrackStack))
 
@@ -382,7 +378,7 @@ extension AppDelegate {
             listPanel.leadingAnchor.constraint(equalTo: top.leadingAnchor),
             listPanel.topAnchor.constraint(equalTo: top.bottomAnchor, constant: 24),
             listPanel.bottomAnchor.constraint(equalTo: playlistsPage.bottomAnchor, constant: -34),
-            listPanel.widthAnchor.constraint(equalTo: playlistsPage.widthAnchor, multiplier: 0.34),
+            listPanel.widthAnchor.constraint(equalTo: playlistsPage.widthAnchor, multiplier: 0.25),
 
             tracksPanel.leadingAnchor.constraint(equalTo: listPanel.trailingAnchor, constant: 18),
             tracksPanel.trailingAnchor.constraint(equalTo: top.trailingAnchor),
