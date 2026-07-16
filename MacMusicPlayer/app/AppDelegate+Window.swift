@@ -192,9 +192,7 @@ extension AppDelegate {
         libraryQueuePanel = makePanel(title: AppText.queue, trailing: libraryPendingCountLabel)
         configureStack(libraryPendingTrackStack)
         libraryQueuePanel.addArrangedSubview(UIHelpers.scrollView(containing: libraryPendingTrackStack))
-        libraryQueuePanel.isHidden = true
-        libraryQueueWidthConstraint = libraryQueuePanel.widthAnchor.constraint(equalTo: libraryPage.widthAnchor,multiplier: 0.35)
-
+        libraryQueueWidthConstraint = libraryQueuePanel.widthAnchor.constraint(equalToConstant: 0)
 
         libraryMainRow = NSStackView(views: [libraryPanel, libraryQueuePanel])
         libraryMainRow.orientation = .horizontal
@@ -205,22 +203,14 @@ extension AppDelegate {
         libraryMainRow.alignment = .top
 
         libraryPage.addSubview(libraryMainRow)
-        // libraryPanel.setContentCompressionResistancePriority(.defaultLow,for: .horizontal)
-        // scroll.setContentCompressionResistancePriority(.defaultLow,for: .horizontal)
-        libraryPanel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        libraryTools.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        selectionStatusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        libraryCountLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        scroll.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         NSLayoutConstraint.activate([
             top.leadingAnchor.constraint(equalTo: libraryPage.leadingAnchor, constant: 34),
             top.trailingAnchor.constraint(equalTo: libraryPage.trailingAnchor, constant: -34),
             top.topAnchor.constraint(equalTo: libraryPage.topAnchor, constant: 34),
             folderFilterPopup.widthAnchor.constraint(equalToConstant: 180),
             searchField.widthAnchor.constraint(equalToConstant: 280),
+            libraryQueueWidthConstraint,
 
-
-            // libraryQueuePanel.heightAnchor.constraint(equalTo: libraryPanel.heightAnchor),
 
             libraryMainRow.leadingAnchor.constraint(equalTo: libraryPage.leadingAnchor, constant: 34),
             libraryMainRow.trailingAnchor.constraint(equalTo: libraryPage.trailingAnchor, constant: -34),

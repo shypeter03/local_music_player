@@ -299,58 +299,51 @@ extension AppDelegate {
     }
 
     @objc func toggleQueueSidebar() {
-        print(libraryPanel.frame.width)
-        print(libraryQueuePanel.frame.width)
-        print(libraryMainRow.frame.width)
         // 1. 根据当前正在展示的页面，动态决定操作哪一个侧边栏及约束
         let queuePanel: NSStackView
         let widthConstraint: NSLayoutConstraint
+        let targetWidth : CGFloat
 
         if currentPage == playerPage {
             queuePanel = playerQueuePanel
-                widthConstraint = playerQueueWidthConstraint
+            widthConstraint = playerQueueWidthConstraint
+            targetWidth = playerPage.bounds.width * 0.25
+
         } else {
             // 主资料库页对应的待播清单面板与约束
             queuePanel = libraryQueuePanel
+            targetWidth = libraryPage.bounds.width * 0.3
             widthConstraint = libraryQueueWidthConstraint
         }
 
-        // 1. 确保开启了 Layer 支持
+        // print("toogle before libraryPanel.frame.width = \(playerPage.frame.width)")
+        // print("toogle before libraryQueuePanel.frame.width =\(playerQueuePanel.frame.width)")
+        // print("toogle before lbraryMainRow.frame.width =\(libraryMainRow.frame.width)")
         queuePanel.wantsLayer = true
         
-        // 2. 物理宽度直接锁死在 150，不再通过动画动态去变它
-        // widthConstraint.constant = 150 
-        widthConstraint.isActive = true
-        
-        // 3. 判断当前是否是隐藏状态
-        let isCurrentlyHidden = queuePanel.isHidden || queuePanel.alphaValue == 0
+        let isCurrentlyCollapsed = widthConstraint.constant == 0
 
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.2 // 稍微缩短时间，让淡入淡出显得更干脆利落
+            context.duration = 0.25
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            context.allowsImplicitAnimation = true
 
-            if isCurrentlyHidden {
-                // 🌟 展开：先让透明度归零，解除隐藏，然后优雅淡入到 1.0
-                queuePanel.alphaValue = 0
-                queuePanel.isHidden = false
-                queuePanel.animator().alphaValue = 1.0
-            } else {
-                // 🌟 收起：动画让透明度变到 0.0
-                queuePanel.animator().alphaValue = 0.0
-            }
+            // 🌟 核心：直接通过动画修改 constant 的值
+            // 如果当前收起，就将其撑开到 targetWidth；如果当前展开，就将其压扁到 0
+            widthConstraint.animator().constant = isCurrentlyCollapsed ? targetWidth : 0
             
-            // 刷新布局
+            // 配合透明度，视觉效果更好
+            queuePanel.animator().alphaValue = isCurrentlyCollapsed ? 1.0 : 0.0
+            
+            // 刷新布局，驱动动画
             self.window.contentView?.layoutSubtreeIfNeeded()
         }, completionHandler: {
-            // 4. 动画结束：如果是收起，彻底将其 setHidden，释放渲染开销
-            if !isCurrentlyHidden {
-                queuePanel.isHidden = true
-            }
         })
 
-        print(libraryPanel.frame.width)
-        print(libraryQueuePanel.frame.width)
-        print(libraryMainRow.frame.width)
+        // print("toggle after libraryPanel.frame.width = \(libraryPanel.frame.width)")
+        // print("toggle after libraryQueuePanel.frame.width =\(libraryQueuePanel.frame.width)")
+        // print("toggle after lbraryMainRow.frame.width =\(libraryMainRow.frame.width)")
+        // print("toggle after targetWidth.frame.width =\(targetWidth)")
     }
 
     @objc func removeFolder(_ sender: NSButton) {
