@@ -299,6 +299,9 @@ extension AppDelegate {
     }
 
     @objc func toggleQueueSidebar() {
+        print(libraryPanel.frame.width)
+        print(libraryQueuePanel.frame.width)
+        print(libraryMainRow.frame.width)
         // 1. 根据当前正在展示的页面，动态决定操作哪一个侧边栏及约束
         let queuePanel: NSStackView
         let widthConstraint: NSLayoutConstraint
@@ -309,7 +312,7 @@ extension AppDelegate {
         } else {
             // 主资料库页对应的待播清单面板与约束
             queuePanel = libraryQueuePanel
-                widthConstraint = libraryQueueWidthConstraint
+            widthConstraint = libraryQueueWidthConstraint
         }
 
         // 1. 确保开启了 Layer 支持
@@ -344,6 +347,10 @@ extension AppDelegate {
                 queuePanel.isHidden = true
             }
         })
+
+        print(libraryPanel.frame.width)
+        print(libraryQueuePanel.frame.width)
+        print(libraryMainRow.frame.width)
     }
 
     @objc func removeFolder(_ sender: NSButton) {

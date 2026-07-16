@@ -57,8 +57,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var playerQueueWidthConstraint: NSLayoutConstraint!
     var playerAlbumWidthConstraint: NSLayoutConstraint!
     var playerAlbumPanel: NSStackView!
-    var libraryLeftColumn: NSStackView!
+    // var libraryLeftColumn: NSStackView!
     var libraryMainRow: NSStackView!
+    var libraryPanel: NSStackView!
 
     let miniPlayer = NSView()
     let miniCover = NSImageView()

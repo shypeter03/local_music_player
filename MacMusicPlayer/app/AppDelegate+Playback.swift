@@ -464,13 +464,11 @@ extension AppDelegate :AVAudioPlayerDelegate {
               !savedIDs.isEmpty else { 
             return 
         }
-        print("savedPlaybackQueueIDs =====\(savedIDs)")
         
         // 从全局的 tracks 库中恢复对应的 Track 对象
         let restoredQueue = savedIDs.compactMap { id in
             tracks.first(where: { $0.id == id })
         }
-        print("restoredQueue =====\(restoredQueue)")
         
         if !restoredQueue.isEmpty {
             self.playbackQueue = restoredQueue

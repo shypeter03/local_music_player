@@ -173,16 +173,6 @@ extension AppDelegate {
         top.translatesAutoresizingMaskIntoConstraints = false
         libraryPage.addSubview(top)
 
-
-        // let recentPanel = makePanel(title: "最近播放", trailing: makeSmallButton("清空", action: #selector(clearRecent)))
-        for row in recentStack.arrangedSubviews {
-            if let constraint = row.constraints.first(where: { $0.firstAttribute == .height }) {
-                constraint.constant = 36 // 从原先可能较大的高度缩减至 36
-            }
-        }
-        configureStack(recentStack)
-        // recentPanel.addArrangedSubview(recentStack)
-
         selectTracksButton.bezelStyle = .rounded
         addSelectedButton.bezelStyle = .rounded
         addSelectedButton.contentTintColor = Theme.accent
@@ -194,7 +184,7 @@ extension AppDelegate {
         libraryTools.orientation = .horizontal
         libraryTools.alignment = .centerY
         libraryTools.spacing = 10
-        let libraryPanel = makePanel(title: AppText.songs, trailing: libraryTools)
+        libraryPanel = makePanel(title: AppText.songs, trailing: libraryTools)
         configureStack(trackStack)
         let scroll = UIHelpers.scrollView(containing: trackStack)
         libraryPanel.addArrangedSubview(scroll)
@@ -205,25 +195,23 @@ extension AppDelegate {
         libraryQueuePanel.isHidden = true
         libraryQueueWidthConstraint = libraryQueuePanel.widthAnchor.constraint(equalTo: libraryPage.widthAnchor,multiplier: 0.35)
 
-        // let dashboard = NSStackView(views: [recentPanel])
-        // dashboard.orientation = .horizontal
-        // dashboard.spacing = 18
-        // dashboard.distribution = .fillEqually
-        // dashboard.translatesAutoresizingMaskIntoConstraints = false
 
-        libraryLeftColumn = NSStackView(views: [libraryPanel])
-        libraryLeftColumn.orientation = .vertical
-        libraryLeftColumn.spacing = 18
-        libraryLeftColumn.translatesAutoresizingMaskIntoConstraints = false
-
-        libraryMainRow = NSStackView(views: [libraryLeftColumn, libraryQueuePanel])
+        libraryMainRow = NSStackView(views: [libraryPanel, libraryQueuePanel])
         libraryMainRow.orientation = .horizontal
         libraryMainRow.spacing = 18
         libraryMainRow.alignment = .top
         libraryMainRow.translatesAutoresizingMaskIntoConstraints = false
+        libraryMainRow.distribution = .fill
+        libraryMainRow.alignment = .top
 
         libraryPage.addSubview(libraryMainRow)
-
+        // libraryPanel.setContentCompressionResistancePriority(.defaultLow,for: .horizontal)
+        // scroll.setContentCompressionResistancePriority(.defaultLow,for: .horizontal)
+        libraryPanel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        libraryTools.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        selectionStatusLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        libraryCountLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        scroll.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         NSLayoutConstraint.activate([
             top.leadingAnchor.constraint(equalTo: libraryPage.leadingAnchor, constant: 34),
             top.trailingAnchor.constraint(equalTo: libraryPage.trailingAnchor, constant: -34),
@@ -231,15 +219,19 @@ extension AppDelegate {
             folderFilterPopup.widthAnchor.constraint(equalToConstant: 180),
             searchField.widthAnchor.constraint(equalToConstant: 280),
 
-            libraryMainRow.leadingAnchor.constraint(equalTo: top.leadingAnchor),
-            libraryMainRow.trailingAnchor.constraint(equalTo: top.trailingAnchor),
+
+            // libraryQueuePanel.heightAnchor.constraint(equalTo: libraryPanel.heightAnchor),
+
+            libraryMainRow.leadingAnchor.constraint(equalTo: libraryPage.leadingAnchor, constant: 34),
+            libraryMainRow.trailingAnchor.constraint(equalTo: libraryPage.trailingAnchor, constant: -34),
             libraryMainRow.topAnchor.constraint(equalTo: top.bottomAnchor, constant: 24),
-            libraryMainRow.bottomAnchor.constraint(equalTo: libraryPage.bottomAnchor, constant: -34),
+            libraryMainRow.bottomAnchor.constraint(equalTo: libraryPage.bottomAnchor, constant: -34)
 
-            // dashboard.heightAnchor.constraint(equalToConstant: 290),
-
-            libraryQueuePanel.heightAnchor.constraint(equalTo: libraryLeftColumn.heightAnchor)
         ])
+        print(libraryPanel.contentCompressionResistancePriority(for: .horizontal))
+        print(libraryQueuePanel.contentCompressionResistancePriority(for: .horizontal))
+        print(libraryPanel.contentHuggingPriority(for: .horizontal))
+        print(libraryQueuePanel.contentHuggingPriority(for: .horizontal))
     }
 
     func configureNowCard() {
