@@ -81,24 +81,76 @@ enum UIHelpers {
         scroll.contentView.postsBoundsChangedNotifications = true
         return scroll
     }
+    static func lyricScrollView(containing stack: NSStackView) -> NSScrollView {
+        let document = FlippedView()
+        document.translatesAutoresizingMaskIntoConstraints = false
+
+        document.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 24),
+            stack.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -24),
+
+            // 关键：左右留边，但整个 Stack 仍然铺满宽度
+            stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -24)
+        ])
+
+        let scroll = NSScrollView()
+        scroll.documentView = document
+
+        scroll.drawsBackground = false
+
+        // 不一直显示滚动条
+        scroll.hasVerticalScroller = false
+        scroll.autohidesScrollers = true
+
+        scroll.automaticallyAdjustsContentInsets = false
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+
+        document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor).isActive = true
+
+        return scroll
+    }
 }
 
 enum TrackScanner {
 
-    static func parseName(_ name: String) -> (artist: String, title: String) {
-        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parts = cleanName.components(separatedBy: " - ")
-        if parts.count >= 2 {
-            let artist = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
-            let title = parts.dropFirst()
-                .joined(separator: " - ")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return (artist, title)
-        }
-        return ("未知艺术家", cleanName)
-    }
+    // static func parseFileName(_ name: String) -> (artist: String, title: String) {
+    //     let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    //     let parts = cleanName.components(separatedBy: " - ")
+    //     if parts.count >= 2 {
+    //         let artist = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+    //         let title = parts.dropFirst()
+    //             .joined(separator: " - ")
+    //             .trimmingCharacters(in: .whitespacesAndNewlines)
+    //         return (artist, title)
+    //     }
+    //     return ("未知艺术家", cleanName)
+    // }
 
     static func scan(folder: SourceFolder, url: URL) -> [Track] {
+        // 1. 确保目录存在
+        let detailDir = url.appendingPathComponent("songDetail", isDirectory: true)
+        var songDetailCache: [String: SaveSongExt] = [:]
+
+        // 2. 检查目录是否存在且是文件夹
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: detailDir.path, isDirectory: &isDir), isDir.boolValue {
+            if let files = try? FileManager.default.contentsOfDirectory(at: detailDir, includingPropertiesForKeys: nil) {
+                for file in files where file.pathExtension == "json" {
+                    if let data = try? Data(contentsOf: file),
+                    let sse = try? JSONDecoder().decode(SaveSongExt.self, from: data) {
+                        // 建议：确保 JSON 中保存的 id 确实是基于同样的算法生成的
+                        songDetailCache[sse.id] = sse
+                    }
+                }
+            }
+        } else {
+            // 可选：如果 scan 时发现没有 songDetail 文件夹，可以根据需求决定是否创建一个
+            // try? FileManager.default.createDirectory(at: detailDir, withIntermediateDirectories: true)
+        }
+
         let resourceKeys: [URLResourceKey] = [.isDirectoryKey, .isRegularFileKey]
         guard let enumerator = FileManager.default.enumerator(
             at: url,
@@ -129,24 +181,31 @@ enum TrackScanner {
         }
 
         return audioURLs.map { fileURL in
-            let parsed = parseName(fileURL.deletingPathExtension().lastPathComponent)
+
+            let cachedDetail = songDetailCache[fileURL.deletingPathExtension().lastPathComponent]
+
             let flacMetadata = fileURL.pathExtension.lowercased() == "flac" ? FLACMetadataReader.read(from: fileURL) : nil
-            let title = flacMetadata?.title?.nonEmpty ?? parsed.title
-            let artist = flacMetadata?.artist?.nonEmpty ?? parsed.artist
+            let title = flacMetadata?.title?.nonEmpty ?? fileURL.deletingPathExtension().lastPathComponent
+            let artist = flacMetadata?.artist?.nonEmpty ?? "未知艺术家"
+
             let base = fileURL.deletingPathExtension().path.lowercased()
             let folderPath = fileURL.deletingLastPathComponent().path.lowercased()
+            let finalTitle = cachedDetail?.title ?? title
+            let finalArtist = cachedDetail?.artist ?? artist
+            let currentStableID = Track.stableID(artist: finalArtist, title: finalTitle)
+
             return Track(
-                id: Track.stableID(artist: artist, title: title),
+                id: currentStableID,
                 folderID: folder.id,
                 url: fileURL,
                 folderURL: url,
-                title: title,
-                artist: artist,
+                title: finalTitle,
+                artist: finalArtist,
                 ext: fileURL.pathExtension,
-                artworkURL: imageByBase[base] ?? coverByFolder[folderPath],
+                artworkURL: cachedDetail?.artworkPath ?? imageByBase[base] ?? coverByFolder[folderPath],
                 lyricURL: lyricByBase[base],
                 embeddedArtwork: flacMetadata?.artwork ?? ArtworkLoader.loadEmbedded(from: fileURL),
-                embeddedLyrics: flacMetadata?.lyrics
+                embeddedLyrics: cachedDetail?.songQrc ?? flacMetadata?.lyrics
             )
         }
     }

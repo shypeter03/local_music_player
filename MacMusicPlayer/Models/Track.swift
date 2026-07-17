@@ -46,4 +46,10 @@ struct Track {
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             .lowercased()
     }
+    var playURL: URL {
+        // if self.source == .local {
+            return self.url // 存在本地，返回本地 URL
+        // }
+        // return self.remoteURL // 不存在，返回远程 URL
+    }
 }

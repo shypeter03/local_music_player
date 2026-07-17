@@ -122,6 +122,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var playbackQueue: [Track] = []
     var playbackHistory: [Track] = []
 
+    var lyricsScrollView: NSScrollView!
+
 
 
     var searchWorkItem: DispatchWorkItem?

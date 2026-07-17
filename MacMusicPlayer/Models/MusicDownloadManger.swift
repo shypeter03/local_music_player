@@ -1,16 +1,28 @@
 import Foundation
 
 class MusicDownloadManager {
+
+
+    static let fileManager = FileManager.default
     
     // 统一的下载存储目录：Library/Application Support/音乐/Downloads/
     static var downloadsDirectory: URL {
-        let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        let paths = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
         let downloadsURL = paths[0]
             .appendingPathComponent("音乐", isDirectory: true)
-            .appendingPathComponent("Downloads", isDirectory: true)
+            .appendingPathComponent("已下载", isDirectory: true)
         
         // 确保 Downloads 文件夹存在
-        try? FileManager.default.createDirectory(at: downloadsURL, withIntermediateDirectories: true)
+        try? fileManager.createDirectory(at: downloadsURL, withIntermediateDirectories: true)
+        return downloadsURL
+    }
+    static var rootDirectory: URL {
+        let paths = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        let downloadsURL = paths[0]
+            .appendingPathComponent("音乐", isDirectory: true)
+        
+        // 确保 Downloads 文件夹存在
+        try? fileManager.createDirectory(at: downloadsURL, withIntermediateDirectories: true)
         return downloadsURL
     }
     
@@ -18,6 +30,7 @@ class MusicDownloadManager {
     static func downloadSong(
         from urlString: String,
         filename: String,
+        songDetail: NetworkSong? = nil,
         completion: @escaping (URL?) -> Void
     ) {
 
@@ -30,7 +43,7 @@ class MusicDownloadManager {
             downloadsDirectory.appendingPathComponent(filename)
         print("目标路径:", destinationURL.path)
 
-        if FileManager.default.fileExists(
+        if fileManager.fileExists(
             atPath: destinationURL.path
         ) {
             completion(destinationURL)
@@ -62,7 +75,7 @@ class MusicDownloadManager {
 
             do {
 
-                try FileManager.default.moveItem(
+                try fileManager.moveItem(
                     at: tempURL,
                     to: destinationURL
                 )
@@ -76,5 +89,61 @@ class MusicDownloadManager {
             }
 
         }.resume()
+    }
+    static func saveTrackData(song: NetworkSong) async throws -> (artwork: URL, audio: URL) {
+        // 先判断文件是否存在，存在就不下载了
+        let newID = Track.stableID(artist: song.singerName, title: song.songName)
+        let artworkDir = rootDirectory.appendingPathComponent("artworks")
+        let artworkURL = artworkDir.appendingPathComponent("\(newID).jpg")
+        let songURL = downloadsDirectory.appendingPathComponent("\(newID).m4a")
+        if FileManager.default.fileExists(atPath: artworkURL.path) && 
+            FileManager.default.fileExists(atPath: songURL.path) {
+            print("资源已存在，无需下载: \(newID) name = \(song.songName)")
+            return (artwork: artworkURL, audio: songURL)
+        }
+        // 1. 保存封面图
+        let artworkData = try? await download(urlStr: song.albumPic ?? "")
+        try fileManager.createDirectory(at: artworkDir, withIntermediateDirectories: true)
+        try artworkData?.write(to: artworkURL)
+        // 2.保存音源文件
+        let songData = try? await download(urlStr: song.songPlayUrl )
+        try fileManager.createDirectory(at: downloadsDirectory, withIntermediateDirectories: true)
+        try songData?.write(to: songURL)
+
+        // 2. 构造 Track 对象
+        let sse = SaveSongExt(
+             id: newID,
+             title: song.songName,
+             artist: song.singerName,
+             albumName: song.albumName ?? "",
+             songQrc: song.songLyric ?? "",
+             artworkPath: artworkURL ,// 封面
+             songFilePath : songURL, //文件
+             originMid: song.songMid
+        )
+
+        // 3. 将 Track 保存为 JSON
+        let jsonDir = downloadsDirectory.appendingPathComponent("songDetail")
+        try fileManager.createDirectory(at: jsonDir, withIntermediateDirectories: true)
+        let jsonURL = jsonDir.appendingPathComponent("\(newID).json")
+        let data = try JSONEncoder().encode(sse)
+        try data.write(to: jsonURL)
+        return (artwork: artworkURL, audio: songURL)
+    }
+        // 假设你有一个下载封面图的函数
+    static func download(urlStr: String) async throws -> Data? {
+        if urlStr.isEmpty {
+                print("这首歌封面为空，跳过")
+                return nil
+            }
+        guard let url = URL(string: urlStr) else { throw URLError(.badURL) }
+        
+        let (data, response) = try await URLSession.shared.data(from: url)
+        
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw URLError(.badServerResponse)
+        }
+        
+        return data // 这里返回的就是 artworkData
     }
 }

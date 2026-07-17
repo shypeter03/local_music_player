@@ -70,7 +70,7 @@ final class TrackRowView: NSControl {
     func configure(track: Track, index: Int, active: Bool, selected: Bool = false, selectionMode: Bool = false) {
         trackID = track.id
         titleLabel.stringValue = track.title
-        subtitleLabel.stringValue = "\(track.artist) · \(track.folderURL.lastPathComponent)"
+        subtitleLabel.stringValue = "\(track.artist) "
         metaLabel.stringValue = track.ext.uppercased()
 
         coverView.image =

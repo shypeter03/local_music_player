@@ -125,13 +125,13 @@ extension AppDelegate {
     func scanFolders() {
         statusLabel.stringValue = "正在扫描…"
         var nextTracks: [Track] = []
-        var scanFolers = folders
+        var scanFolders = folders
         // 调用方式
         if let newFolder = defaultFolderToSF() {
-            scanFolers.append(newFolder)
+            scanFolders.append(newFolder)
         }
 
-        for folder in scanFolers {
+        for folder in scanFolders {
             let url = folder.resolvedURL()
             _ = url.startAccessingSecurityScopedResource()
             let scanned = TrackScanner.scan(folder: folder, url: url)
@@ -232,7 +232,7 @@ extension AppDelegate {
             filteredTracks = scopedTracks
         } else {
             filteredTracks = scopedTracks.filter {
-                "\($0.title) \($0.artist) \($0.folderURL.lastPathComponent) \($0.url.lastPathComponent)"
+                "\($0.title) \($0.artist)"
                     .lowercased()
                     .contains(query)
             }
@@ -272,7 +272,7 @@ extension AppDelegate {
                         
                         // 如果没有，构建一个新的
                         return Track(
-                            id: Track.stableID(artist:song.singerName,title:song.songTitle),
+                            id: newID,
                             folderID: song.songMid,
                             url: url,
                             folderURL: url,
@@ -319,34 +319,41 @@ extension AppDelegate {
 
                 print("decodedSong =\(song)")
 
-                MusicDownloadManager.downloadSong(from:song.songPlayUrl ,filename:"\(mid).m4a"){ localURL in
-                    if let localURL {
-                        print("下载成功:", localURL.path)
-                    } else {
-                        print("下载失败")
+                Task {
+                    do {
+                        // 使用 try await 调用你的异步方法
+                        let paths = try await MusicDownloadManager.saveTrackData(song: song)
+                        print("封面位置: \(paths.artwork.path)")
+                        print("音频位置: \(paths.audio.path)")
+                        let temTrack = Track(
+                                id: Track.stableID(artist: song.singerName, title: song.songName),
+                                folderID: song.songMid,
+                                url: paths.audio,
+                                folderURL: paths.audio,
+                                title: song.songName,
+                                artist: song.singerName,
+                                ext: "M4A",
+                                artworkURL: paths.artwork,
+                                lyricURL: nil,
+                                embeddedArtwork: nil,
+                                embeddedLyrics: song.songLyric,
+                                source: .local,    // 标记为网络内容
+                                remoteURL: nil
+                            )
+                        DispatchQueue.main.async {
+                            if let index = self.filteredTracks.firstIndex(where: { $0.id == temTrack.id }) {
+                                // 2. 如果存在，直接替换
+                                self.filteredTracks[index] = temTrack
+                                print("已更新 ID 为 \(temTrack.id) 的轨道数据")
+                            }
+                            self.tracks.append(temTrack)
+                            self.renderTracks()
+                        }
+                    } catch {
+                        // 如果出错，这里会捕获到异常
+                        print("failure: \(error)")
                     }
                 }
-
-                
-                // let temTrack = Track(
-                //         id: song.songMid,
-                //         folderID: nil,
-                //         url: url,
-                //         folderURL: nil,
-                //         title: song.songName,
-                //         artist: song.singerName,
-                //         ext: "",
-                //         artworkURL: nil,
-                //         lyricURL: nil,
-                //         embeddedArtwork: nil,
-                //         embeddedLyrics: nil,
-                //         source: .remote,    // 标记为网络内容
-                //         remoteURL: nil
-                //     )
-                // DispatchQueue.main.async {
-                //     self.filteredTracks = temTracks
-                //     self.renderTracks()
-                // }
                 
             } catch {
                 print("JSON 解析失败: \(error)")

@@ -448,8 +448,9 @@ extension AppDelegate {
         playerQueueWidthConstraint = playerQueuePanel.widthAnchor.constraint(equalToConstant: 280)
 
         playerLyricsPanel = makePanel(title: AppText.lyrics, trailing: lyricsStatus)
-        configureStack(lyricsStack)
-        playerLyricsPanel.addArrangedSubview(UIHelpers.scrollView(containing: lyricsStack))
+        configureLyricStack(lyricsStack)
+        lyricsScrollView = UIHelpers.lyricScrollView(containing: lyricsStack)
+        playerLyricsPanel.addArrangedSubview(lyricsScrollView)
         playerLyricsPanel.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         configureQueueButton(playerQueueButton)
@@ -480,6 +481,9 @@ extension AppDelegate {
             playerContent.topAnchor.constraint(equalTo: playerHeader.bottomAnchor, constant: 36),
             playerContent.bottomAnchor.constraint(equalTo: playerPage.bottomAnchor, constant: -34),
 
+            albumPanel.heightAnchor.constraint(equalTo: playerLyricsPanel.heightAnchor),
+            // scr.trailingAnchor.constraint(equalTo: playerLyricsPanel.trailingAnchor,constant: -12),
+
             playerAlbumWidthConstraint,
 
             detailCover.widthAnchor.constraint(equalToConstant: 300),
@@ -493,15 +497,6 @@ extension AppDelegate {
         ])
     }
 
-    func updatePlayerAlbumWidth() {
-        playerAlbumWidthConstraint.isActive = false
-        let multiplier: CGFloat = isQueueSidebarVisible ? 0.30 : 0.42
-        playerAlbumWidthConstraint = playerAlbumPanel.widthAnchor.constraint(
-            equalTo: playerPage.widthAnchor,
-            multiplier: multiplier
-        )
-        playerAlbumWidthConstraint.isActive = true
-    }
 
     func addPage(_ page: NSView) {
         page.translatesAutoresizingMaskIntoConstraints = false
@@ -593,6 +588,14 @@ extension AppDelegate {
         stack.orientation = .vertical
         stack.spacing = 8
         stack.alignment = .leading
+        stack.translatesAutoresizingMaskIntoConstraints = false
+    }
+    func configureLyricStack(_ stack: NSStackView) {
+        stack.orientation = .vertical
+        stack.alignment = .centerX
+        stack.distribution = .fill
+        stack.spacing = 18
+        stack.edgeInsets = NSEdgeInsets(top: 24, left: 24, bottom: 24, right: 24)
         stack.translatesAutoresizingMaskIntoConstraints = false
     }
 }

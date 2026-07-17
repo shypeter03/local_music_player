@@ -189,7 +189,7 @@ extension AppDelegate :AVAudioPlayerDelegate {
 
     func startTimer() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             self?.updateProgress()
         }
     }
@@ -215,6 +215,12 @@ extension AppDelegate :AVAudioPlayerDelegate {
         self.lyrics = []
         UIHelpers.clear(self.lyricsStack)
         self.lyricsStatus.stringValue = "正在加载歌词..."
+        // 1、先看看track里带不带歌词
+        
+        if let lyrics = track.embeddedLyrics, !lyrics.isEmpty {
+            self.renderLyricText(lyrics, isEmbedded: false)
+            return
+        }
 
         // 2. 尝试寻找同名外部 .lrc 文件
         let audioPath = track.url.path
@@ -313,14 +319,18 @@ extension AppDelegate :AVAudioPlayerDelegate {
         // 生成 UI 标签
         self.lyricLabels = self.lyrics.map {
             let label = NSTextField(labelWithString: $0.text)
-            label.font = .systemFont(ofSize: 17, weight: .regular)
+            label.font = .systemFont(ofSize: 17)
             label.textColor = Theme.secondaryText
+            label.alignment = .center
             label.lineBreakMode = .byWordWrapping
             label.maximumNumberOfLines = 0
+            label.translatesAutoresizingMaskIntoConstraints = false
+
+            label.setContentHuggingPriority(.required, for: .vertical)
+            label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
             label.wantsLayer = true
             label.layer?.cornerRadius = 8
-            label.translatesAutoresizingMaskIntoConstraints = false
-            label.heightAnchor.constraint(greaterThanOrEqualToConstant: 36).isActive = true
             return label
         }
         
@@ -401,6 +411,16 @@ extension AppDelegate :AVAudioPlayerDelegate {
             label.font = .systemFont(ofSize: isActive ? 19 : 17, weight: isActive ? .bold : .regular)
             label.applyBackground(isActive ? Theme.cardSelectedBackground : .clear)
         }
+
+        let label = lyricLabels[active]
+        let clipView = lyricsScrollView.contentView
+        // 转换到 documentView 坐标系
+        let rect = label.convert(label.bounds, to: clipView.documentView)
+        let y = max(
+            0,
+            rect.midY - clipView.bounds.height / 2
+        )
+        clipView.animator().setBoundsOrigin(NSPoint(x: 0, y: y))
     }
 
     func renderPendingQueue() {
