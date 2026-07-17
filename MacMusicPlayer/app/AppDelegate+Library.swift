@@ -240,28 +240,38 @@ extension AppDelegate {
         renderTracks()
     }
 
-        func netWorkSeach() {
+    func netWorkSeach() {
         let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        print("query = \(query)")
         guard let url = buildURL(baseURL:AppText.listURL,params: [
             "msg": query,
             "type": "json"]) 
         else { return }
-        print("url=========================\(url)")
         URLSession.shared.dataTask(with: url) { data, response, error in
             guard let data = data, error == nil else {
                 print("网络请求失败: \(String(describing: error))")
                 return
             }
-            
             do {
                 let decoder = JSONDecoder()
                 let decodedSongs = try decoder.decode([NetworkSongListItem].self, from: data)
                 
                 DispatchQueue.main.async {
-                    print("成功解析到 \(decodedSongs.count) 首歌曲")
-                    let temTracks = decodedSongs.map { song in
-                        Track(
+                                
+                    // 1. 先把现有的 tracks 转换成字典，方便快速查找
+                    // key 是 id，value 是对应的 Track 对象
+                    let tracksDict = Dictionary(uniqueKeysWithValues: self.tracks.map { ($0.id, $0) })
+
+                    // 2. 遍历网络返回的歌曲，进行匹配或创建
+                    let temTracks = decodedSongs.map { song -> Track in
+                        let newID = Track.stableID(artist: song.singerName, title: song.songTitle)
+                        
+                        // 如果字典里已经有了这个 ID，直接返回已有的对象
+                        if let existingTrack = tracksDict[newID] {
+                            return existingTrack
+                        }
+                        
+                        // 如果没有，构建一个新的
+                        return Track(
                             id: Track.stableID(artist:song.singerName,title:song.songTitle),
                             folderID: song.songMid,
                             url: url,
@@ -277,8 +287,7 @@ extension AppDelegate {
                             remoteURL: nil
                         )
                     }
-                    print("成功解析到 \(temTracks.count) 首歌曲")
-                    
+            
                     self.filteredTracks = temTracks
                     self.renderTracks()
                 }
@@ -483,8 +492,7 @@ extension AppDelegate {
             return
         }
         if track.source == .remote {
-            print("midID \(track.folderID ?? "空")")
-            self.netDetail(mid: track.folderID ?? "")
+            self.netDetail(mid: track.folderID)
             return
         }
         if !playlistsPage.isHidden, isSelectingPlaylistTracks {
