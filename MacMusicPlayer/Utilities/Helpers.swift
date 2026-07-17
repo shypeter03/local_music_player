@@ -68,12 +68,17 @@ enum UIHelpers {
             stack.bottomAnchor.constraint(lessThanOrEqualTo: document.bottomAnchor),
             stack.widthAnchor.constraint(equalTo: document.widthAnchor)
         ])
+
         let scroll = NSScrollView()
         scroll.documentView = document
         scroll.hasVerticalScroller = true
+        scroll.scrollerStyle = .overlay
+        scroll.autohidesScrollers = true
         scroll.drawsBackground = false
         scroll.translatesAutoresizingMaskIntoConstraints = false
-        document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor).isActive = true
+        let clipView = scroll.contentView
+        document.widthAnchor.constraint(equalTo: clipView.widthAnchor).isActive = true
+        scroll.contentView.postsBoundsChangedNotifications = true
         return scroll
     }
 }

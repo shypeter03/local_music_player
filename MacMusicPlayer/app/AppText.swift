@@ -62,6 +62,8 @@ enum AppText {
     static let recent = "最近播放"
     static let librarySearchPlaceholder = "搜索歌名、艺术家、文件夹"
     static let refreshScan = "刷新"
+    static let localSearch = "本地"
+    static let onlineSearch = "网络"
     static let allFolders = "全部文件夹"
     static let noLyrics = "未找到同名 .lrc 或内嵌歌词"
     static let lyricsFileEmpty = "歌词文件为空"
@@ -76,4 +78,6 @@ enum AppText {
     static let menuAppearanceSystem = "跟随系统"
     static let menuAppearanceLight = "浅色"
     static let menuAppearanceDark = "深色"
+
+    static let listURL = "https://tang.api.s01s.cn/music_open_api.php"
 }

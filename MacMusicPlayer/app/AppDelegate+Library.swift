@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 
 extension AppDelegate {
 
@@ -124,7 +125,13 @@ extension AppDelegate {
     func scanFolders() {
         statusLabel.stringValue = "正在扫描…"
         var nextTracks: [Track] = []
-        for folder in folders {
+        var scanFolers = folders
+        // 调用方式
+        if let newFolder = defaultFolderToSF() {
+            scanFolers.append(newFolder)
+        }
+
+        for folder in scanFolers {
             let url = folder.resolvedURL()
             _ = url.startAccessingSecurityScopedResource()
             let scanned = TrackScanner.scan(folder: folder, url: url)
@@ -135,15 +142,36 @@ extension AppDelegate {
         tracks = nextTracks.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
         migratePlaylistsAfterScan()
         saveFolders()
-        if let selectedFolderID, !folders.contains(where: { $0.id == selectedFolderID }) {
-            self.selectedFolderID = nil
-            UserDefaults.standard.removeObject(forKey: "selectedFolderID")
-        }
-        renderFolderFilter()
+        // renderFolderFilter()
         applySearch()
         renderFolders()
         renderPlaylists()
         statusLabel.stringValue = tracks.isEmpty ? "没有扫描到音乐" : AppText.loadedTrackCount(tracks.count)
+    }
+
+    func defaultFolderToSF() -> SourceFolder?{
+        let fileManager = FileManager.default
+        let folderURL = MusicDownloadManager.downloadsDirectory
+        
+        // 1. 检查目录是否存在
+        var isDir: ObjCBool = false
+        if !fileManager.fileExists(atPath: folderURL.path, isDirectory: &isDir) || !isDir.boolValue {
+            print("目录不存在: \(folderURL.path)")
+            return nil
+        }
+        
+        // 2. 明确类型的 BookmarkData 生成
+        // 明确告诉编译器 options 是 URL.BookmarkCreationOptions 类型
+        let bookmarkData = try? folderURL.bookmarkData(
+            options: URL.BookmarkCreationOptions.withSecurityScope,
+            includingResourceValuesForKeys: nil, // 这里在 Swift 中是可以传 nil 的
+            relativeTo: nil
+        )
+        
+        // 3. 修正变量名：这里必须使用 folderURL，之前报错是因为你用了 'url'
+        let sourceFolder = SourceFolder(url: folderURL, bookmark: bookmarkData)
+        
+        return sourceFolder
     }
 
     private func migratePlaylistsAfterScan() {
@@ -164,27 +192,41 @@ extension AppDelegate {
     }
 
     @objc func searchChanged() {
-        applySearch()
+            // 2. 每次输入时，取消上一个任务（如果还没执行的话）
+        searchWorkItem?.cancel()
+        
+        // 3. 创建一个新的延迟任务
+        let workItem = DispatchWorkItem { 
+            // 这里放入你原本的搜索逻辑
+            if self.searchMode == .online{
+                print("进入netWorkSeach")
+                self.netWorkSeach()
+            }else{
+                self.applySearch()
+            }
+        }
+        
+        // 4. 保存这个任务并延迟 0.5 秒执行
+        searchWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
     }
 
     @objc func folderFilterChanged() {
-        selectedFolderID = folderFilterPopup.selectedItem?.representedObject as? String
-        if let selectedFolderID {
-            UserDefaults.standard.set(selectedFolderID, forKey: "selectedFolderID")
-        } else {
-            UserDefaults.standard.removeObject(forKey: "selectedFolderID")
+        searchMode = folderFilterPopup.indexOfSelectedItem == 0 ? .online : .local
+        UserDefaults.standard.set(self.searchMode.rawValue, forKey: "searchMode")
+        print("searchMode == \(searchMode.rawValue)  flag  = \(searchMode == .online)")
+        if searchMode == .online{
+            print("进入netWorkSeach")
+            netWorkSeach()
+         }else{
+            applySearch()
         }
-        applySearch()
     }
 
     func applySearch() {
         let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let scopedTracks: [Track]
-        if let selectedFolderID {
-            scopedTracks = tracks.filter { $0.folderID == selectedFolderID }
-        } else {
-            scopedTracks = tracks
-        }
+        scopedTracks = tracks
 
         if query.isEmpty {
             filteredTracks = scopedTracks
@@ -196,7 +238,130 @@ extension AppDelegate {
             }
         }
         renderTracks()
-        // renderRecent()
+    }
+
+        func netWorkSeach() {
+        let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        print("query = \(query)")
+        guard let url = buildURL(baseURL:AppText.listURL,params: [
+            "msg": query,
+            "type": "json"]) 
+        else { return }
+        print("url=========================\(url)")
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            guard let data = data, error == nil else {
+                print("网络请求失败: \(String(describing: error))")
+                return
+            }
+            
+            do {
+                let decoder = JSONDecoder()
+                let decodedSongs = try decoder.decode([NetworkSongListItem].self, from: data)
+                
+                DispatchQueue.main.async {
+                    print("成功解析到 \(decodedSongs.count) 首歌曲")
+                    let temTracks = decodedSongs.map { song in
+                        Track(
+                            id: Track.stableID(artist:song.singerName,title:song.songTitle),
+                            folderID: song.songMid,
+                            url: url,
+                            folderURL: url,
+                            title: song.songTitle,
+                            artist: song.singerName,
+                            ext: "",
+                            artworkURL: nil,
+                            lyricURL: nil,
+                            embeddedArtwork: nil,
+                            embeddedLyrics: nil,
+                            source: .remote,    // 标记为网络内容
+                            remoteURL: nil
+                        )
+                    }
+                    print("成功解析到 \(temTracks.count) 首歌曲")
+                    
+                    self.filteredTracks = temTracks
+                    self.renderTracks()
+                }
+                
+            } catch {
+                print("JSON 解析失败: \(error)")
+                print("data = \(String(describing: String(data: data, encoding: .utf8)))")
+            }
+        }.resume()
+    }
+
+
+    func netDetail(mid :String) {
+        let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        print("query = \(query)")
+        guard let url = buildURL(baseURL:AppText.listURL,params: [
+            "mid": mid,
+            "type": "json"]) 
+        else { return }
+        print("url=========================\(url)")
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            guard let data = data, error == nil else {
+                print("网络请求失败: \(String(describing: error))")
+                return
+            }
+            do {
+                let decoder = JSONDecoder()
+                let song = try decoder.decode(NetworkSong.self, from: data)
+
+                print("decodedSong =\(song)")
+
+                MusicDownloadManager.downloadSong(from:song.songPlayUrl ,filename:"\(mid).m4a"){ localURL in
+                    if let localURL {
+                        print("下载成功:", localURL.path)
+                    } else {
+                        print("下载失败")
+                    }
+                }
+
+                
+                // let temTrack = Track(
+                //         id: song.songMid,
+                //         folderID: nil,
+                //         url: url,
+                //         folderURL: nil,
+                //         title: song.songName,
+                //         artist: song.singerName,
+                //         ext: "",
+                //         artworkURL: nil,
+                //         lyricURL: nil,
+                //         embeddedArtwork: nil,
+                //         embeddedLyrics: nil,
+                //         source: .remote,    // 标记为网络内容
+                //         remoteURL: nil
+                //     )
+                // DispatchQueue.main.async {
+                //     self.filteredTracks = temTracks
+                //     self.renderTracks()
+                // }
+                
+            } catch {
+                print("JSON 解析失败: \(error)")
+                print("data = \(String(describing: String(data: data, encoding: .utf8)))")
+            }
+        }.resume()
+    }
+
+    func buildURL(baseURL: String, params: [String: String]) -> URL? {
+        guard var components = URLComponents(string: baseURL) else {
+            return nil
+        }
+
+        var queryItems = components.queryItems ?? []
+
+        queryItems.append(
+            contentsOf: params.map { key, value in
+                URLQueryItem(name: key, value: value)
+            }
+        )
+
+        components.queryItems = queryItems
+
+        return components.url
     }
 
     func renderTracks() {
@@ -222,25 +387,9 @@ extension AppDelegate {
         }
     }
 
-    // func renderRecent() {
-    //     UIHelpers.clear(recentStack)
-    //     let recent = recentIDs.compactMap { id in tracks.first(where: { $0.id == id }) }.prefix(5)
-    //     if recent.isEmpty {
-    //         recentStack.addArrangedSubview(UIHelpers.emptyLabel("播放后会出现在这里"))
-    //         return
-    //     }
-    //     for track in recent {
-    //         let row = TrackRowView()
-    //         row.configure(track: track, index: 0, active: false)
-    //         row.target = self
-    //         row.action = #selector(trackRowClicked(_:))
-    //         recentStack.addArrangedSubview(row)
-    //     }
-    // }
 
     func renderFolders() {
         folderCountLabel.stringValue = "\(folders.count) 个"
-        renderFolderFilter()
         UIHelpers.clear(folderStack)
         if folders.isEmpty {
             folderStack.addArrangedSubview(UIHelpers.emptyLabel("尚未添加文件夹，可一次选择多个本地和 iCloud 文件夹。"))
@@ -255,27 +404,6 @@ extension AppDelegate {
         }
     }
 
-    func renderFolderFilter() {
-        let currentSelection = selectedFolderID
-        folderFilterPopup.removeAllItems()
-        folderFilterPopup.addItem(withTitle: "全部文件夹")
-        folderFilterPopup.item(at: 0)?.representedObject = nil
-
-        for folder in folders {
-            folderFilterPopup.addItem(withTitle: folder.name)
-            folderFilterPopup.lastItem?.representedObject = folder.id
-        }
-
-        if let currentSelection,
-           folders.contains(where: { $0.id == currentSelection }),
-           let index = folderFilterPopup.itemArray.firstIndex(where: { ($0.representedObject as? String) == currentSelection }) {
-            folderFilterPopup.selectItem(at: index)
-            selectedFolderID = currentSelection
-        } else {
-            folderFilterPopup.selectItem(at: 0)
-            selectedFolderID = nil
-        }
-    }
 
     func updateSelectionControls() {
         selectTracksButton.title = isSelectingTracks ? AppText.done : AppText.select
@@ -346,16 +474,19 @@ extension AppDelegate {
         guard let id = sender.identifier?.rawValue else { return }
         folders.removeAll { $0.id == id }
         tracks.removeAll { $0.folderID == id }
-        if selectedFolderID == id {
-            selectedFolderID = nil
-            UserDefaults.standard.removeObject(forKey: "selectedFolderID")
-        }
         saveFolders()
         scanFolders()
     }
 
     @objc func trackRowClicked(_ sender: TrackRowView) {
-        guard let track = tracks.first(where: { $0.id == sender.trackID }) else { return }
+        guard let track = filteredTracks.first(where: { $0.id == sender.trackID }) else {
+            return
+        }
+        if track.source == .remote {
+            print("midID \(track.folderID ?? "空")")
+            self.netDetail(mid: track.folderID ?? "")
+            return
+        }
         if !playlistsPage.isHidden, isSelectingPlaylistTracks {
             if selectedPlaylistTrackIDs.contains(track.id) {
                 selectedPlaylistTrackIDs.remove(track.id)

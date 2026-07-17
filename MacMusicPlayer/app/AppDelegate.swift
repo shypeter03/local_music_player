@@ -109,7 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var timer: Timer?
     var lyrics: [LyricLine] = []
     var lyricLabels: [NSTextField] = []
-    var selectedFolderID: String? = UserDefaults.standard.string(forKey: "selectedFolderID")
+    var searchMode: SearchMode = SearchMode(rawValue: UserDefaults.standard.integer(forKey: "searchMode")) ?? .local
     var selectedPlaylistID: String?
     var selectedTrackIDs = Set<String>()
     var isSelectingTracks = false
@@ -121,6 +121,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 队首始终是当前曲目；其余项目即为待播清单。
     var playbackQueue: [Track] = []
     var playbackHistory: [Track] = []
+
+
+
+    var searchWorkItem: DispatchWorkItem?
+    var networkSongs: [NetworkSongListItem] = []
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         true

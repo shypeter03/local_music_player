@@ -111,6 +111,11 @@ cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
   <string>1</string>
   <key>LSMinimumSystemVersion</key>
   <string>12.0</string>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+      <key>NSAllowsArbitraryLoads</key>
+      <true/>
+  </dict>
   <key>NSHighResolutionCapable</key>
   <true/>
 </dict>

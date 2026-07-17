@@ -2,6 +2,12 @@ import AppKit
 import CryptoKit
 import Foundation
 
+
+enum TrackSource {
+    case local
+    case remote
+}
+
 struct Track {
     let id: String
     let folderID: String
@@ -14,6 +20,11 @@ struct Track {
     let lyricURL: URL?
     let embeddedArtwork: NSImage?
     let embeddedLyrics: String?
+
+    var source: TrackSource = .local
+        /// 网络歌曲第一次没有
+    var remoteURL: URL?
+    // var duration: TimeInterval
 
     var dedupeKey: String {
         Self.dedupeKey(artist: artist, title: title)
