@@ -124,6 +124,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     var lyricsScrollView: NSScrollView!
 
+    var highLightActive = -1
+
 
 
     var searchWorkItem: DispatchWorkItem?
@@ -134,6 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        setupCommandWShortcut()
         NSApp.setActivationPolicy(.regular)
         if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
            let icon = NSImage(contentsOf: iconURL) {
@@ -269,6 +272,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.play(track: randomTrack, resetQueue: false)
         playbackHistory.append(randomTrack)
 
+    }
+    /// 设置 Command + W 为最小化窗口
+    func setupCommandWShortcut() { 
+        guard let mainMenu = NSApp.mainMenu else { return }
+        
+        // 遍历所有菜单项寻找 "File" 和 "Window" 菜单
+        for menuItem in mainMenu.items {
+            // 1. 找到 "File" 菜单下的 "Close Window" 并清除其快捷键
+            if let submenu = menuItem.submenu {
+                for subItem in submenu.items {
+                    // 查找 "Close Window" (注意：如果你的App是中文，这里可能需要匹配 "关闭窗口")
+                    // 使用 title 的 contains 是最通用的做法
+                    if subItem.title.contains("Close") || subItem.title.contains("关闭") {
+                        subItem.keyEquivalent = ""
+                    }
+                }
+            }
+            
+            // 2. 找到 "Window" 菜单下的 "Minimize" 并赋予它 "w" 快捷键
+            if menuItem.title.contains("Window") || menuItem.title.contains("窗口") {
+                if let submenu = menuItem.submenu {
+                    for subItem in submenu.items {
+                        if subItem.title.contains("Minimize") || subItem.title.contains("最小化") {
+                            subItem.keyEquivalent = "w"
+                            subItem.keyEquivalentModifierMask = .command
+                        }
+                    }
+                }
+            }
+        }
     }
 
 }

@@ -242,6 +242,10 @@ extension AppDelegate {
 
     func netWorkSeach() {
         let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if query.isEmpty || query.count < 2{
+            print("没参数，不请求网络")
+            return
+        }
         guard let url = buildURL(baseURL:AppText.listURL,params: [
             "msg": query,
             "type": "json"]) 
@@ -275,7 +279,7 @@ extension AppDelegate {
                             id: newID,
                             folderID: song.songMid,
                             url: url,
-                            folderURL: url,
+                            folderURL: MusicDownloadManager.downloadsDirectory,
                             title: song.songTitle,
                             artist: song.singerName,
                             ext: "",
@@ -300,24 +304,24 @@ extension AppDelegate {
     }
 
 
-    func netDetail(mid :String) {
+    func netDetail(mid :String ,completion: @escaping (Track?) -> Void) {
         let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        print("query = \(query)")
         guard let url = buildURL(baseURL:AppText.listURL,params: [
             "mid": mid,
             "type": "json"]) 
-        else { return }
-        print("url=========================\(url)")
+        else { 
+            completion(nil)
+            return 
+        }
         URLSession.shared.dataTask(with: url) { data, response, error in
             guard let data = data, error == nil else {
                 print("网络请求失败: \(String(describing: error))")
+                completion(nil)
                 return
             }
             do {
                 let decoder = JSONDecoder()
                 let song = try decoder.decode(NetworkSong.self, from: data)
-
-                print("decodedSong =\(song)")
 
                 Task {
                     do {
@@ -329,7 +333,7 @@ extension AppDelegate {
                                 id: Track.stableID(artist: song.singerName, title: song.songName),
                                 folderID: song.songMid,
                                 url: paths.audio,
-                                folderURL: paths.audio,
+                                folderURL: MusicDownloadManager.downloadsDirectory,
                                 title: song.songName,
                                 artist: song.singerName,
                                 ext: "M4A",
@@ -347,10 +351,11 @@ extension AppDelegate {
                                 print("已更新 ID 为 \(temTrack.id) 的轨道数据")
                             }
                             self.tracks.append(temTrack)
-                            self.renderTracks()
+                            completion(temTrack)
                         }
                     } catch {
                         // 如果出错，这里会捕获到异常
+                        completion(nil)
                         print("failure: \(error)")
                     }
                 }
@@ -498,10 +503,29 @@ extension AppDelegate {
         guard let track = filteredTracks.first(where: { $0.id == sender.trackID }) else {
             return
         }
-        if track.source == .remote {
-            self.netDetail(mid: track.folderID)
-            return
+        if track.source == .remote && !isSelectingTracks {
+            self.netDetail(mid: track.folderID){ [weak self] downloadedTrack in
+
+            guard let self,
+                  let downloadedTrack else {
+                return
+            }
+            // 下载完成以后
+            // 重新进入后续逻辑
+            self.hanndleCompetionTrackClick(
+                track: downloadedTrack,
+                sender: sender
+            )
+            }
+
+            return   //
         }
+        self.hanndleCompetionTrackClick(track: track,sender:sender)
+    }
+
+    func hanndleCompetionTrackClick(track: Track,sender: TrackRowView){
+        var track = track
+
         if !playlistsPage.isHidden, isSelectingPlaylistTracks {
             if selectedPlaylistTrackIDs.contains(track.id) {
                 selectedPlaylistTrackIDs.remove(track.id)

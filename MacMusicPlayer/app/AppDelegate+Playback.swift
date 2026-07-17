@@ -15,6 +15,7 @@ extension AppDelegate :AVAudioPlayerDelegate {
             audioPlayer?.play()
             currentTrack = track
             currentIndex = playbackQueue.firstIndex(where: { $0.id == track.id }) ?? -1
+            highLightActive = -1
             isAdvancingAtEnd = false
             addRecent(track.id)
             loadLyrics(for: track)
@@ -404,6 +405,12 @@ extension AppDelegate :AVAudioPlayerDelegate {
         var active = 0
         for (index, line) in lyrics.enumerated() where time >= line.time {
             active = index
+        }
+        // 不设置会强制一直刷新到中间位置
+        if highLightActive == active{
+            return 
+        }else{
+            highLightActive = active
         }
         for (index, label) in lyricLabels.enumerated() {
             let isActive = index == active
