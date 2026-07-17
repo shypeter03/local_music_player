@@ -315,7 +315,7 @@ extension AppDelegate :AVAudioPlayerDelegate {
             self.lyrics = [LyricLine(time: 0, text: text)]
         }
         
-        self.lyricsStatus.stringValue = "\(self.lyrics.count)行)"
+        self.lyricsStatus.stringValue = "\(self.lyrics.count)行"
         
         // 生成 UI 标签
         self.lyricLabels = self.lyrics.map {
