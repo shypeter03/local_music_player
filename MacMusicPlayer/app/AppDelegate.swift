@@ -220,28 +220,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func playNextTrack() {
         
         let nextIndex = self.currentIndex + 1
+        let nextTrack: Track
         
         if nextIndex < self.playbackQueue.count {
             // 队列里还有下一首，继续播放
-            let nextTrack = self.playbackQueue[nextIndex]
+            nextTrack = self.playbackQueue[nextIndex]
             print("➡️ 自动播放下一首 [\(nextIndex + 1)/\(self.playbackQueue.count)]: \(nextTrack.title)")
-            self.play(track: nextTrack, resetQueue: false)
             playbackHistory.append(nextTrack)
         } else {
             // 已经播放到最后一首了
             if self.repeatMode == .all {
                 // 列表循环开启：回到第一首
-                let firstTrack = self.playbackQueue[0]
-                print("🔁 列表循环：已到最后一首，回到第一首: \(firstTrack.title)")
-                self.play(track: firstTrack, resetQueue: false)
-                playbackHistory.append(firstTrack)
+                nextTrack = self.playbackQueue[0]
+                print("🔁 列表循环：已到最后一首，回到第一首: \(nextTrack.title)")
+                playbackHistory.append(nextTrack)
             } else {
                 // 顺序播放关闭（.off）：到最后一首后停止播放
                 print("⏹️ 顺序播放结束：已播完列表最后一首")
                 // 这里可以根据需要将进度条归 0 或停止 Timer
                 self.audioPlayer?.stop()
                 self.updateCurrentUI()
+                return
             }
+        }
+        if nextTrack.source == .remote{
+            self.netDetail(mid: nextTrack.folderID){ [weak self] downloadedTrack in
+                guard let self,
+                    let downloadedTrack else {
+                    return
+                }
+                // 下载完成以后
+                // 重新进入后续逻辑
+                self.play(track: downloadedTrack, resetQueue: false)
+            }
+        }else{
+            self.play(track: nextTrack, resetQueue: false)
         }
     }
     
@@ -269,7 +282,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         let randomTrack = self.playbackQueue[randomIndex]
         print("🔀 随机播放 [索引: \(randomIndex)]: \(randomTrack.title)")
-        self.play(track: randomTrack, resetQueue: false)
+        if randomTrack.source == .remote{
+            self.netDetail(mid: randomTrack.folderID){ [weak self] downloadedTrack in
+                guard let self,
+                    let downloadedTrack else {
+                    return
+                }
+                // 下载完成以后
+                // 重新进入后续逻辑
+                self.play(track: downloadedTrack, resetQueue: false)
+            }
+        }else{
+            self.play(track: randomTrack, resetQueue: false)
+        }
         playbackHistory.append(randomTrack)
 
     }

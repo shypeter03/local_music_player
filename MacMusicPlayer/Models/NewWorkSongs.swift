@@ -11,6 +11,7 @@ struct NetworkSong: Codable {
     let albumPic: String?
     let songPlayTime: Int?
     let songPlayUrl: String
+    let songPlayUrlSq: String?
     let songLyric: String?
     let vip: String?
     let pay: String? // JSON 里有 pay 字段，别忘了加
@@ -30,6 +31,7 @@ struct NetworkSong: Codable {
         case vip = "vip"
         case pay = "pay"
         case fileName = "song_filename_lq"
+        case songPlayUrlSq = "song_play_url_sq"
     }
 }
 struct NetworkSongListItem: Codable {

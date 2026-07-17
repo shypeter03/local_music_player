@@ -315,7 +315,7 @@ extension AppDelegate :AVAudioPlayerDelegate {
             self.lyrics = [LyricLine(time: 0, text: text)]
         }
         
-        self.lyricsStatus.stringValue = isEmbedded ? "内嵌歌词 (\(self.lyrics.count)行)" : "外部歌词 (\(self.lyrics.count)行)"
+        self.lyricsStatus.stringValue = "\(self.lyrics.count)行)"
         
         // 生成 UI 标签
         self.lyricLabels = self.lyrics.map {
@@ -406,7 +406,7 @@ extension AppDelegate :AVAudioPlayerDelegate {
         for (index, line) in lyrics.enumerated() where time >= line.time {
             active = index
         }
-        // 不设置会强制一直刷新到中间位置
+        // 不设置会强制
         if highLightActive == active{
             return 
         }else{

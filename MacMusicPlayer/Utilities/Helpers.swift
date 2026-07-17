@@ -71,7 +71,8 @@ enum UIHelpers {
 
         let scroll = NSScrollView()
         scroll.documentView = document
-        scroll.hasVerticalScroller = true
+        scroll.hasVerticalScroller = false
+        scroll.autohidesScrollers = true
         scroll.scrollerStyle = .overlay
         scroll.autohidesScrollers = true
         scroll.drawsBackground = false

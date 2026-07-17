@@ -159,7 +159,7 @@ extension AppDelegate {
         searchField.translatesAutoresizingMaskIntoConstraints = false
         folderFilterPopup.translatesAutoresizingMaskIntoConstraints = false
         folderFilterPopup.bezelStyle = .rounded
-        folderFilterPopup.addItems(withTitles: [AppText.onlineSearch, AppText.localSearch])
+        folderFilterPopup.addItems(withTitles: [AppText.localSearch,AppText.onlineSearch])
         let refresh = NSButton(title: AppText.refreshScan, target: self, action: #selector(scanFoldersAction))
         refresh.bezelStyle = .rounded
         configureQueueButton(libraryQueueButton)

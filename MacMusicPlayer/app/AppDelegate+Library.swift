@@ -212,7 +212,7 @@ extension AppDelegate {
     }
 
     @objc func folderFilterChanged() {
-        searchMode = folderFilterPopup.indexOfSelectedItem == 0 ? .online : .local
+        searchMode = folderFilterPopup.indexOfSelectedItem == 1 ? .online : .local
         UserDefaults.standard.set(self.searchMode.rawValue, forKey: "searchMode")
         print("searchMode == \(searchMode.rawValue)  flag  = \(searchMode == .online)")
         if searchMode == .online{

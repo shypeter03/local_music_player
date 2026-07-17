@@ -34,8 +34,18 @@ struct Track {
         "\(normalize(artist))|\(normalize(title))"
     }
 
+    static func threedupeKey(artist: String, title: String,album: String) -> String {
+        "\(normalize(artist))|\(normalize(title))|\(normalize(album))"
+    }
+
     static func stableID(artist: String, title: String) -> String {
         let key = dedupeKey(artist: artist, title: title)
+        let digest = SHA256.hash(data: Data(key.utf8))
+        return "t:" + digest.prefix(16).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func stableIDWithAlbum(artist: String, title: String,album: String) -> String {
+        let key = threedupeKey(artist: artist, title: title,album: album)
         let digest = SHA256.hash(data: Data(key.utf8))
         return "t:" + digest.prefix(16).map { String(format: "%02x", $0) }.joined()
     }

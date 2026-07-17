@@ -93,8 +93,9 @@ class MusicDownloadManager {
     static func saveTrackData(song: NetworkSong) async throws -> (artwork: URL, audio: URL) {
         // 先判断文件是否存在，存在就不下载了
         let newID = Track.stableID(artist: song.singerName, title: song.songName)
+        let artID = Track.stableIDWithAlbum(artist: song.singerName, title: song.songName,album: song.albumName ?? "")
         let artworkDir = rootDirectory.appendingPathComponent("artworks")
-        let artworkURL = artworkDir.appendingPathComponent("\(newID).jpg")
+        let artworkURL = artworkDir.appendingPathComponent("\(artID).jpg")
         let songURL = downloadsDirectory.appendingPathComponent("\(newID).m4a")
         if FileManager.default.fileExists(atPath: artworkURL.path) && 
             FileManager.default.fileExists(atPath: songURL.path) {
