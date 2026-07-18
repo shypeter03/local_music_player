@@ -33,6 +33,24 @@ struct NetworkSong: Codable {
         case fileName = "song_filename_lq"
         case songPlayUrlSq = "song_play_url_sq"
     }
+    var songURL: String {
+        return self.songPlayUrlSq ?? self.songPlayUrl
+    }
+
+    var isFLAC: Bool {
+        guard let url = songPlayUrlSq else {
+            return false
+        }
+        return !url.isEmpty
+    }
+
+    var fileExtension: String {
+        isFLAC ? "flac" : "m4a"
+    }
+    var viewExtension: String {
+        isFLAC ? "FLAC" : "M4A"
+    }
+
 }
 struct NetworkSongListItem: Codable {
     let songTitle: String

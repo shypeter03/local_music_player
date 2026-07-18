@@ -96,7 +96,7 @@ class MusicDownloadManager {
         let artID = Track.stableIDWithAlbum(artist: song.singerName, title: song.songName,album: song.albumName ?? "")
         let artworkDir = rootDirectory.appendingPathComponent("artworks")
         let artworkURL = artworkDir.appendingPathComponent("\(artID).jpg")
-        let songURL = downloadsDirectory.appendingPathComponent("\(newID).m4a")
+        let songURL = downloadsDirectory.appendingPathComponent("\(newID).\(song.fileExtension)")
         if FileManager.default.fileExists(atPath: artworkURL.path) && 
             FileManager.default.fileExists(atPath: songURL.path) {
             print("资源已存在，无需下载: \(newID) name = \(song.songName)")
@@ -107,7 +107,7 @@ class MusicDownloadManager {
         try fileManager.createDirectory(at: artworkDir, withIntermediateDirectories: true)
         try artworkData?.write(to: artworkURL)
         // 2.保存音源文件
-        let songData = try? await download(urlStr: song.songPlayUrl )
+        let songData = try? await download(urlStr: song.songURL )
         try fileManager.createDirectory(at: downloadsDirectory, withIntermediateDirectories: true)
         try songData?.write(to: songURL)
 

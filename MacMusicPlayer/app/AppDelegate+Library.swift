@@ -305,6 +305,7 @@ extension AppDelegate {
 
 
     func netDetail(mid :String ,completion: @escaping (Track?) -> Void) {
+        LoadingHUD.shared.show("正在下载歌曲...")
         let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard let url = buildURL(baseURL:AppText.listURL,params: [
             "mid": mid,
@@ -336,7 +337,7 @@ extension AppDelegate {
                                 folderURL: MusicDownloadManager.downloadsDirectory,
                                 title: song.songName,
                                 artist: song.singerName,
-                                ext: "M4A",
+                                ext: song.viewExtension,
                                 artworkURL: paths.artwork,
                                 lyricURL: nil,
                                 embeddedArtwork: nil,
@@ -351,10 +352,12 @@ extension AppDelegate {
                                 print("已更新 ID 为 \(temTrack.id) 的轨道数据")
                             }
                             self.tracks.append(temTrack)
+                            LoadingHUD.shared.hide()
                             completion(temTrack)
                         }
                     } catch {
                         // 如果出错，这里会捕获到异常
+                        LoadingHUD.shared.hide()
                         completion(nil)
                         print("failure: \(error)")
                     }
