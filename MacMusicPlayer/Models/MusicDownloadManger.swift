@@ -103,11 +103,11 @@ class MusicDownloadManager {
             return (artwork: artworkURL, audio: songURL)
         }
         // 1. 保存封面图
-        let artworkData = try? await download(urlStr: song.albumPic ?? "")
+        let artworkData = try? await download(url: song.albumPic )
         try fileManager.createDirectory(at: artworkDir, withIntermediateDirectories: true)
         try artworkData?.write(to: artworkURL)
         // 2.保存音源文件
-        let songData = try? await download(urlStr: song.songURL )
+        let songData = try? await download(url: song.songURL )
         try fileManager.createDirectory(at: downloadsDirectory, withIntermediateDirectories: true)
         try songData?.write(to: songURL)
 
@@ -132,12 +132,11 @@ class MusicDownloadManager {
         return (artwork: artworkURL, audio: songURL)
     }
         // 假设你有一个下载封面图的函数
-    static func download(urlStr: String) async throws -> Data? {
-        if urlStr.isEmpty {
-                print("这首歌封面为空，跳过")
-                return nil
-            }
-        guard let url = URL(string: urlStr) else { throw URLError(.badURL) }
+    static func download(url: URL?) async throws -> Data? {
+        guard let url = url else {
+            print("URL 为空，跳过下载")
+            return nil
+        }
         
         let (data, response) = try await URLSession.shared.data(from: url)
         

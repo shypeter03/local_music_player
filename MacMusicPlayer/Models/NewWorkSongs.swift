@@ -8,10 +8,10 @@ struct NetworkSong: Codable {
     
     // 下面这些属性如果不确定 JSON 里有没有，全部设为可选类型
     let albumName: String?
-    let albumPic: String?
+    let albumPic: URL?
     let songPlayTime: Int?
-    let songPlayUrl: String
-    let songPlayUrlSq: String?
+    let songPlayUrl: URL
+    let songPlayUrlSq: URL?
     let songLyric: String?
     let vip: String?
     let pay: String? // JSON 里有 pay 字段，别忘了加
@@ -33,15 +33,12 @@ struct NetworkSong: Codable {
         case fileName = "song_filename_lq"
         case songPlayUrlSq = "song_play_url_sq"
     }
-    var songURL: String {
+    var songURL: URL {
         return self.songPlayUrlSq ?? self.songPlayUrl
     }
 
     var isFLAC: Bool {
-        guard let url = songPlayUrlSq else {
-            return false
-        }
-        return !url.isEmpty
+        return songPlayUrlSq != nil
     }
 
     var fileExtension: String {

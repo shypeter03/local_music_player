@@ -305,7 +305,8 @@ extension AppDelegate {
 
 
     func netDetail(mid :String ,completion: @escaping (Track?) -> Void) {
-        LoadingHUD.shared.show("正在下载歌曲...")
+        print("开始 = \(TimeHelper.now())")
+        LoadingHUD.shared.show("正在加载歌曲...")
         let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard let url = buildURL(baseURL:AppText.listURL,params: [
             "mid": mid,
@@ -314,60 +315,54 @@ extension AppDelegate {
             completion(nil)
             return 
         }
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            guard let data = data, error == nil else {
-                print("网络请求失败: \(String(describing: error))")
-                completion(nil)
-                return
-            }
+        Task {
             do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                print("url 结束 = \(TimeHelper.now())")
                 let decoder = JSONDecoder()
                 let song = try decoder.decode(NetworkSong.self, from: data)
-
-                Task {
-                    do {
-                        // 使用 try await 调用你的异步方法
-                        let paths = try await MusicDownloadManager.saveTrackData(song: song)
-                        print("封面位置: \(paths.artwork.path)")
-                        print("音频位置: \(paths.audio.path)")
-                        let temTrack = Track(
-                                id: Track.stableID(artist: song.singerName, title: song.songName),
-                                folderID: song.songMid,
-                                url: paths.audio,
-                                folderURL: MusicDownloadManager.downloadsDirectory,
-                                title: song.songName,
-                                artist: song.singerName,
-                                ext: song.viewExtension,
-                                artworkURL: paths.artwork,
-                                lyricURL: nil,
-                                embeddedArtwork: nil,
-                                embeddedLyrics: song.songLyric,
-                                source: .local,    // 标记为网络内容
-                                remoteURL: nil
-                            )
-                        DispatchQueue.main.async {
-                            if let index = self.filteredTracks.firstIndex(where: { $0.id == temTrack.id }) {
-                                // 2. 如果存在，直接替换
-                                self.filteredTracks[index] = temTrack
-                                print("已更新 ID 为 \(temTrack.id) 的轨道数据")
-                            }
-                            self.tracks.append(temTrack)
-                            LoadingHUD.shared.hide()
-                            completion(temTrack)
-                        }
-                    } catch {
-                        // 如果出错，这里会捕获到异常
-                        LoadingHUD.shared.hide()
-                        completion(nil)
-                        print("failure: \(error)")
+                print("decode 结束 = \(TimeHelper.now())")
+                let temTrack = Track(
+                        id: Track.stableID(artist: song.singerName, title: song.songName),
+                        folderID: song.songMid,
+                        url: song.songURL,
+                        folderURL: MusicDownloadManager.downloadsDirectory,
+                        title: song.songName,
+                        artist: song.singerName,
+                        ext: song.viewExtension,
+                        artworkURL: song.albumPic,
+                        lyricURL: nil,
+                        embeddedArtwork: nil,
+                        embeddedLyrics: song.songLyric,
+                        source: .local,    // 标记为网络内容
+                        remoteURL: nil
+                )
+                await MainActor.run {
+                    if let index = self.filteredTracks.firstIndex(where: { $0.id == temTrack.id }) {
+                        // 2. 如果存在，直接替换
+                        self.filteredTracks[index] = temTrack
+                        print("已更新 ID 为 \(temTrack.id) 的轨道数据")
+                        print("更新 结束 = \(TimeHelper.now())")
                     }
+                    self.tracks.append(temTrack)
+                    LoadingHUD.shared.hide()
+                    completion(temTrack)
+                    print("结束 = \(TimeHelper.now())")
                 }
-                
+                print("下载开始 = \(TimeHelper.now())")
+                let paths = try await MusicDownloadManager.saveTrackData(song: song)
+                print("封面位置: \(paths.artwork.path)")
+                print("音频位置: \(paths.audio.path)")
+                print("下载结束 = \(TimeHelper.now())")
+
             } catch {
-                print("JSON 解析失败: \(error)")
-                print("data = \(String(describing: String(data: data, encoding: .utf8)))")
+                // 如果出错，这里会捕获到异常
+                LoadingHUD.shared.hide()
+                completion(nil)
+                print("failure: \(error)")
             }
-        }.resume()
+        }
+                
     }
 
     func buildURL(baseURL: String, params: [String: String]) -> URL? {
@@ -527,7 +522,6 @@ extension AppDelegate {
     }
 
     func hanndleCompetionTrackClick(track: Track,sender: TrackRowView){
-        var track = track
 
         if !playlistsPage.isHidden, isSelectingPlaylistTracks {
             if selectedPlaylistTrackIDs.contains(track.id) {

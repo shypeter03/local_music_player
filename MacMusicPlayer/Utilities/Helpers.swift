@@ -428,3 +428,15 @@ enum PlaylistHelpers {
         }
     }
 }
+enum TimeHelper {
+
+    private static let logFormatter: DateFormatter = {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+            return formatter
+    }()
+
+    static func now() -> String {
+        logFormatter.string(from: Date())
+    }
+}
