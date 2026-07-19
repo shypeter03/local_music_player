@@ -6,26 +6,100 @@ class PlayerManager: NSObject {
     
     // 使用 AVPlayer，支持本地和远程
     var player: AVPlayer?
-    
-    /// 播放音频（支持本地 fileURL 和 远程 httpURL）
-    func play(urlString: String) {
-        guard let url = URL(string: urlString) else { return }
-        
-        // AVPlayer 可以自动识别 URL 类型
-        // 如果是本地路径，它会直接读取磁盘
-        // 如果是 http 地址，它会自动开启流媒体加载
-        let playerItem = AVPlayerItem(url: url)
-        
-        if player == nil {
-            player = AVPlayer(playerItem: playerItem)
-        } else {
-            player?.replaceCurrentItem(with: playerItem)
-        }
-        
-        player?.play()
+
+    var isPlaying: Bool {
+        player?.timeControlStatus != .paused
     }
-    
+
+    var currentTime: Double {
+        guard let player else { return 0 }
+        let time = player.currentTime().seconds
+        return time.isFinite ? time : 0
+    }
+
+    var duration: Double {
+        guard let player else { return 0 }
+        let duration = player.currentItem?.duration.seconds ?? 0
+        return duration.isFinite ? duration : 0
+    }
+
+    var hasPlayer: Bool {
+        player != nil
+    }
     func pause() {
         player?.pause()
+    }
+
+    func resume() {
+        player?.play()
+    }
+
+    func stop() {
+        player?.pause()
+        player?.replaceCurrentItem(with: nil)
+    }
+
+    /// 只加载，不播放
+    func load(url: URL) {
+        let item = AVPlayerItem(url: url)
+        // 移除旧监听
+        NotificationCenter.default.removeObserver(
+            self,
+            name: .AVPlayerItemDidPlayToEndTime,
+            object: nil
+        )
+
+        // 注册新监听
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(itemDidPlayToEnd(_:)),
+            name: .AVPlayerItemDidPlayToEndTime,
+            object: item
+        )
+        if player == nil {
+            player = AVPlayer(playerItem: item)
+        } else {
+            player?.replaceCurrentItem(with: item)
+        }
+    }
+
+    /// 开始播放当前已加载的内容
+    func play() {
+        player?.play()
+    }   
+
+    func loadAndPlay(url: URL) {
+        load(url: url)
+        play()
+    }
+
+    func seek(progress: Double) {
+        guard let player,
+            let item = player.currentItem else {
+            return
+        }
+
+        let duration = item.duration.seconds
+        guard duration.isFinite, duration > 0 else {
+            return
+        }
+
+        let seconds = progress * duration
+
+        player.seek(to: CMTime(seconds: seconds,preferredTimescale: 600))
+    }   
+
+
+    @objc private func itemDidPlayToEnd(_ notification: Notification) {
+        print("🎵 播放结束")
+
+        NotificationCenter.default.post(
+            name: .playerDidFinishPlaying,
+            object: nil
+        )
+    }
+
+   deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 }

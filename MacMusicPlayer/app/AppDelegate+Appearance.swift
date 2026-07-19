@@ -57,9 +57,13 @@ extension AppDelegate {
         case .dark:
             NSApp.appearance = NSAppearance(named: .darkAqua)
         }
+        window.appearance = NSApp.appearance
         UserDefaults.standard.set(preference.rawValue, forKey: "appearancePreference")
-        updateAppearanceMenuState()
-        applyTheme()
+        DispatchQueue.main.async {
+            self.applyTheme()
+            self.updateAppearanceMenuState()
+        }
+        // applyTheme()
     }
 
     private func updateAppearanceMenuState() {

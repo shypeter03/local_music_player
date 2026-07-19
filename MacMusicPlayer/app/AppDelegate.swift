@@ -105,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var recentIDs: [String] = UserDefaults.standard.stringArray(forKey: "recentTracks") ?? []
     var currentTrack: Track?
     var currentIndex = -1
-    var audioPlayer: AVAudioPlayer?
+    // var audioPlayer: AVAudioPlayer?
     var timer: Timer?
     var lyrics: [LyricLine] = []
     var lyricLabels: [NSTextField] = []
@@ -158,6 +158,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 2. 👈 【新增】此时 tracks 已经从本地文件夹加载完毕，立刻恢复上一次的待播清单
         restorePlaybackQueue()
         showMainWindow()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handlePlayerFinished),
+            name: .playerDidFinishPlaying,
+            object: nil
+        )
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -238,7 +245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // 顺序播放关闭（.off）：到最后一首后停止播放
                 print("⏹️ 顺序播放结束：已播完列表最后一首")
                 // 这里可以根据需要将进度条归 0 或停止 Timer
-                self.audioPlayer?.stop()
+                PlayerManager.shared.stop()
                 self.updateCurrentUI()
                 return
             }

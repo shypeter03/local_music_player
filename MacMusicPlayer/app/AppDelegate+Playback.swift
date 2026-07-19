@@ -1,23 +1,18 @@
 import AppKit
 import AVFoundation
 
-extension AppDelegate :AVAudioPlayerDelegate {
+extension AppDelegate {
 
     func play(track: Track, resetQueue: Bool = true) {
         do {
             if resetQueue {
                 resetPlaybackQueue(with: filteredTracks.isEmpty ? tracks : filteredTracks, startingAt: track)
             }
-            audioPlayer = try AVAudioPlayer(contentsOf: track.url)
-            audioPlayer?.delegate = self
-
-            audioPlayer?.prepareToPlay()
-            audioPlayer?.play()
+            PlayerManager.shared.loadAndPlay(url: track.url)
             currentTrack = track
             currentIndex = playbackQueue.firstIndex(where: { $0.id == track.id }) ?? -1
             highLightActive = -1
             isAdvancingAtEnd = false
-            addRecent(track.id)
             loadLyrics(for: track)
             updateCurrentUI()
             startTimer()
@@ -29,37 +24,34 @@ extension AppDelegate :AVAudioPlayerDelegate {
     }
 
     @objc func togglePlay() {
-        // 如果当前已经有静默加载好的歌曲（冷启动恢复的）
-        if let player = audioPlayer {
-            if player.isPlaying {
-                // 如果正在播，直接暂停
-                player.pause()
+
+        let manager = PlayerManager.shared
+        // 已经加载过歌曲
+        if manager.player != nil {
+            if manager.isPlaying {
+                manager.pause()
                 updatePlayButtons()
             } else {
-                // 如果处于暂停状态：
-                if player.currentTime > 0 {
-                    // 🌟 核心修复：如果已经播放了一部分，直接继续播放，不重头载入！
-                    player.play()
-                    startTimer()
-                    updatePlayButtons()
-                } else {
-                    // 🌟 只有在冷启动（时间为 0 且从未播放过）时，才走规范的 play(track) 去激活全套逻辑
-                    if let track = currentTrack {
-                        play(track: track, resetQueue: false)
-                    } else {
-                        player.play()
-                        startTimer()
-                        updatePlayButtons()
-                    }
-                }
+                // 已加载，只需继续播放
+                manager.play()
+                startTimer()
+                updatePlayButtons()
             }
             return
         }
 
-        // 如果完全没有载入过歌曲，才默认播放第一首
-        if audioPlayer == nil, let first = tracks.first {
+        // 完全没有加载过歌曲
+        if let track = currentTrack {
+            // 如果 currentTrack 是恢复出来的，只加载，不播放
+            manager.loadAndPlay(url: track.url)
+            startTimer()
+            updatePlayButtons()
+            return
+        }
+
+        // 连 currentTrack 都没有，播放第一首
+        if let first = tracks.first {
             play(track: first, resetQueue: true)
-                return
         }
     }
 
@@ -121,9 +113,8 @@ extension AppDelegate :AVAudioPlayerDelegate {
 
 
     @objc func seekChanged(_ sender: NSSlider) {
-        guard let player = audioPlayer, player.duration > 0 else { return }
         isAdvancingAtEnd = false
-        player.currentTime = (sender.doubleValue / 100) * player.duration
+        PlayerManager.shared.seek(progress: sender.doubleValue / 100.0)
         updateProgress()
     }
 
@@ -146,16 +137,17 @@ extension AppDelegate :AVAudioPlayerDelegate {
 
         let image = ArtworkLoader.artwork(for: track)
         [miniCover, nowCover, detailCover].forEach { $0.image = image }
+        print("currentTrack = \(track.title)")
         updatePlayButtons()
         updateProgress()
         renderTracks()
-        // renderRecent()
         renderSelectedPlaylistTracks()
         renderPendingQueue()
     }
 
     func updatePlayButtons() {
-        let title = audioPlayer?.isPlaying == true ? "⏸" : "▶"
+        print("PlayerManager.shared.isPlaying = \(PlayerManager.shared.isPlaying)")
+        let title = PlayerManager.shared.isPlaying == true ? "⏸" : "▶"
         playButton.title = title
         detailPlayButton.title = title
     }
@@ -196,19 +188,39 @@ extension AppDelegate :AVAudioPlayerDelegate {
     }
 
     func updateProgress() {
-        guard let player = audioPlayer else {
-            [currentTime, miniCurrentTime, sideCurrentTime].forEach { $0.stringValue = AppText.zeroDuration }
-            [durationTime, miniDuration, sideDuration].forEach { $0.stringValue = AppText.zeroDuration }
-            [seekBar, miniSeek, sideSeek].forEach { $0.doubleValue = 0 }
+        let manager = PlayerManager.shared
+        guard manager.hasPlayer else {
+            [currentTime, miniCurrentTime, sideCurrentTime].forEach {
+                $0.stringValue = AppText.zeroDuration
+            }
+            [durationTime, miniDuration, sideDuration].forEach {
+                $0.stringValue = AppText.zeroDuration
+            }
+            [seekBar, miniSeek, sideSeek].forEach {
+                $0.doubleValue = 0
+            }
             return
         }
-        if player.duration > 0 {
-            let percent = (player.currentTime / player.duration) * 100
-            [seekBar, miniSeek, sideSeek].forEach { $0.doubleValue = percent }
+
+        let current = manager.currentTime
+        let duration = manager.duration
+
+        if duration > 0 {
+            let percent = current / duration * 100
+            [seekBar, miniSeek, sideSeek].forEach {
+                $0.doubleValue = percent
+            }
         }
-        [currentTime, miniCurrentTime, sideCurrentTime].forEach { $0.stringValue = UIHelpers.formatTime(player.currentTime) }
-        [durationTime, miniDuration, sideDuration].forEach { $0.stringValue = UIHelpers.formatTime(player.duration) }
-        highlightLyric(at: player.currentTime)
+
+        [currentTime, miniCurrentTime, sideCurrentTime].forEach {
+            $0.stringValue = UIHelpers.formatTime(current)
+        }
+
+        [durationTime, miniDuration, sideDuration].forEach {
+            $0.stringValue = UIHelpers.formatTime(duration)
+        }
+
+        highlightLyric(at: current)
     }
 
     func loadLyrics(for track: Track) {
@@ -339,8 +351,8 @@ extension AppDelegate :AVAudioPlayerDelegate {
         self.lyricLabels.forEach { self.lyricsStack.addArrangedSubview($0) }
         
         // 重新高亮当前进度的歌词
-        if let player = self.audioPlayer {
-            self.highlightLyric(at: player.currentTime)
+        if let player = PlayerManager.shared.player {
+            self.highlightLyric(at: player.currentTime().seconds)
         }
     }
 
@@ -493,9 +505,7 @@ extension AppDelegate :AVAudioPlayerDelegate {
     /// 将一首歌静默加载到 miniplayer，准备好播放状态但不直接播放（保持暂停）
     func loadTrackWithoutPlaying(_ track: Track) {
         do {
-            audioPlayer = try AVAudioPlayer(contentsOf: track.url)
-            audioPlayer?.delegate = self
-            audioPlayer?.prepareToPlay() // 仅准备，不 play()
+            PlayerManager.shared.load(url: track.url)
             
             currentTrack = track
             currentIndex = playbackQueue.firstIndex(where: { $0.id == track.id }) ?? -1
@@ -511,9 +521,9 @@ extension AppDelegate :AVAudioPlayerDelegate {
         }
     }
     /// 当歌曲自然播放结束时，系统会自动回调这个方法
-    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+    @objc func handlePlayerFinished() {
         // 🌟 1. 打印黄金分界线，确认这个函数到底有没有被执行！
-        print("🚨🚨🚨 [DEBUG] 系统触发了 audioPlayerDidFinishPlaying 回调！successfully = \(flag)")
+        print("🚨🚨🚨 [DEBUG] 系统触发了 handlePlayerFinished 回调！")
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             print("🎵 歌曲播放完成，准备切换...")
@@ -530,9 +540,5 @@ extension AppDelegate :AVAudioPlayerDelegate {
                 self.playRandomTrack()
             }
         }
-    }
-    // 加上这个方法测试！
-    func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
-        print("❌❌❌ 播放器解码出错啦！ Error: \(String(describing: error))")
     }
 }
