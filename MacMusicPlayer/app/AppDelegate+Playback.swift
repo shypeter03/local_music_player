@@ -56,9 +56,10 @@ extension AppDelegate {
     }
 
     @objc func playPrevious() {
-        guard let previous = playbackHistory.popLast() else { return }
-        print("<<正在播放上一首歌 \(previous.title)>>")
+        guard let previousID = playbackHistory.pop() else { return }
         renderPendingQueue()
+        guard let previous = tracks.first(where: { $0.id == previousID }) else { return }
+        print("<<正在播放上一首歌 \(previous.title)>>")
         play(track: previous, resetQueue: false)
     }
 
@@ -98,7 +99,6 @@ extension AppDelegate {
             return
         }
         playbackQueue = Array(unique[index...]) + Array(unique[..<index])
-        playbackHistory = []
         renderPendingQueue()
         savePlaybackQueue() 
     }
@@ -533,10 +533,8 @@ extension AppDelegate {
             case .one: // 🔂 单曲循环模式
                 self.handleSingleLoop()
             case .all, .off: // 🔁 列表循环 / 顺序播放
-                // playbackHistory.append(track)
                 self.playNextTrack()
             case .shuffle: // 🔀 随机播放
-                // playbackHistory.append(track)
                 self.playRandomTrack()
             }
         }

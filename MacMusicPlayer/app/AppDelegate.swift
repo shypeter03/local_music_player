@@ -120,7 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var isAdvancingAtEnd = false
     /// 队首始终是当前曲目；其余项目即为待播清单。
     var playbackQueue: [Track] = []
-    var playbackHistory: [Track] = []
+    var playbackHistory: PlaybackHistoryQueue = PlaybackHistoryQueue(capacity: 100)
 
     var lyricsScrollView: NSScrollView!
 
@@ -226,6 +226,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 2. 🔁 播放下一首（对应 .all 和 .off 的情况）
     func playNextTrack() {
         
+        playbackHistory.record(self.playbackQueue[self.currentIndex].id)
         let nextIndex = self.currentIndex + 1
         let nextTrack: Track
         
@@ -233,14 +234,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // 队列里还有下一首，继续播放
             nextTrack = self.playbackQueue[nextIndex]
             print("➡️ 自动播放下一首 [\(nextIndex + 1)/\(self.playbackQueue.count)]: \(nextTrack.title)")
-            playbackHistory.append(nextTrack)
         } else {
             // 已经播放到最后一首了
             if self.repeatMode == .all {
                 // 列表循环开启：回到第一首
                 nextTrack = self.playbackQueue[0]
                 print("🔁 列表循环：已到最后一首，回到第一首: \(nextTrack.title)")
-                playbackHistory.append(nextTrack)
             } else {
                 // 顺序播放关闭（.off）：到最后一首后停止播放
                 print("⏹️ 顺序播放结束：已播完列表最后一首")
@@ -267,6 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     
     /// 3. 🔀 随机播放一首
     func playRandomTrack() {
+        playbackHistory.record(self.playbackQueue[self.currentIndex].id)
         guard !self.playbackQueue.isEmpty else {
             print("⏹️ 播放队列为空，停止播放")
             self.updateCurrentUI()
@@ -302,7 +302,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }else{
             self.play(track: randomTrack, resetQueue: false)
         }
-        playbackHistory.append(randomTrack)
 
     }
     /// 设置 Command + W 为最小化窗口
