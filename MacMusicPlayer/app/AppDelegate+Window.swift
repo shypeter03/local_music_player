@@ -2,6 +2,14 @@ import AppKit
 
 extension AppDelegate {
 
+    /// Shared vertical rhythm for the sidebar and the player detail page.
+    /// Keeping these values together makes the two distant areas line up as
+    /// the window resizes.
+    private enum PlayerLayout {
+        static let sidebarIconTop: CGFloat = 50
+        static let miniPlayerBottom: CGFloat = 24
+    }
+
     func buildWindow() {
         window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 1180, height: 760),
@@ -16,7 +24,8 @@ extension AppDelegate {
         window.styleMask.insert(.fullSizeContentView)
 
         window.center()
-        window.minSize = NSSize(width: 920, height: 620)
+        // The detail layout needs room for a useful-size cover and lyrics.
+        window.minSize = NSSize(width: 1_050, height: 620)
         buildApplicationMenu()
         root.applyBackground(Theme.windowBackground)
         window.contentView = root
@@ -67,8 +76,8 @@ extension AppDelegate {
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: -24),
-            stack.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: 50),
-            stack.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -24),
+            stack.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: PlayerLayout.sidebarIconTop),
+            stack.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -PlayerLayout.miniPlayerBottom),
             brand.widthAnchor.constraint(equalTo: stack.widthAnchor),
             libraryButton.widthAnchor.constraint(equalTo: stack.widthAnchor),
             foldersButton.widthAnchor.constraint(equalTo: stack.widthAnchor),
@@ -482,32 +491,38 @@ extension AppDelegate {
         playerContent.distribution = .fill
         playerContent.translatesAutoresizingMaskIntoConstraints = false
 
-        playerPage.addSubview(playerHeader)
         playerPage.addSubview(playerContent)
+        // Keep the navigation control above the cards after their top edges
+        // are aligned to the sidebar icon.
+        playerPage.addSubview(playerHeader)
 
-        // Cover information and lyrics occupy the available width in a 2:3 ratio.
-        playerAlbumWidthConstraint = albumPanel.widthAnchor.constraint(equalTo: playerLyricsPanel.widthAnchor, multiplier: 2.0 / 3.0)
+        // Give artwork and lyrics equal width so the larger cover has room.
+        playerAlbumWidthConstraint = albumPanel.widthAnchor.constraint(equalTo: playerLyricsPanel.widthAnchor)
 
         NSLayoutConstraint.activate([
             playerHeader.leadingAnchor.constraint(equalTo: playerPage.leadingAnchor, constant: 34),
             playerHeader.trailingAnchor.constraint(equalTo: playerPage.trailingAnchor, constant: -34),
-            playerHeader.topAnchor.constraint(equalTo: playerPage.topAnchor, constant: 50),
+            // This matches the music-note icon's top edge in the sidebar.
+            playerHeader.topAnchor.constraint(equalTo: playerPage.topAnchor, constant: PlayerLayout.sidebarIconTop),
 
             playerContent.leadingAnchor.constraint(equalTo: playerPage.leadingAnchor, constant: 34),
             playerContent.trailingAnchor.constraint(equalTo: playerPage.trailingAnchor, constant: -34),
-            playerContent.topAnchor.constraint(equalTo: playerHeader.bottomAnchor, constant: 24),
-            playerContent.bottomAnchor.constraint(equalTo: playerPage.bottomAnchor, constant: -34),
+            // Artwork and lyrics share the sidebar's visual top and bottom
+            // baselines: the music icon above and the mini player below.
+            playerContent.topAnchor.constraint(equalTo: playerPage.topAnchor, constant: PlayerLayout.sidebarIconTop),
+            playerContent.bottomAnchor.constraint(equalTo: playerPage.bottomAnchor, constant: -PlayerLayout.miniPlayerBottom),
 
             albumPanel.heightAnchor.constraint(equalTo: playerContent.heightAnchor),
             // scr.trailingAnchor.constraint(equalTo: playerLyricsPanel.trailingAnchor,constant: -12),
 
             playerAlbumWidthConstraint,
 
-            detailCover.widthAnchor.constraint(equalToConstant: 220),
+            detailCover.widthAnchor.constraint(equalToConstant: 280),
             detailCover.heightAnchor.constraint(equalTo: detailCover.widthAnchor),
             seek.widthAnchor.constraint(equalTo: albumPanel.widthAnchor, constant: -56),
             currentTime.widthAnchor.constraint(equalToConstant: 42),
             durationTime.widthAnchor.constraint(equalToConstant: 42),
+            detailVolume.widthAnchor.constraint(equalTo: seekBar.widthAnchor),
 
             playerLyricsPanel.heightAnchor.constraint(equalTo: playerContent.heightAnchor)
         ])
@@ -585,6 +600,11 @@ extension AppDelegate {
         let titleLabel = NSTextField(labelWithString: title)
         titleLabel.font = .systemFont(ofSize: 16, weight: .bold)
         titleLabel.textColor = Theme.text
+        // Keep short section names, such as “歌词”, intact when the trailing
+        // status label needs more room.
+        titleLabel.setContentHuggingPriority(.required, for: .horizontal)
+        titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        trailing?.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let headerViews: [NSView] = trailing.map { [titleLabel, NSView(), $0] } ?? [titleLabel]
         let header = NSStackView(views: headerViews)
         header.orientation = .horizontal

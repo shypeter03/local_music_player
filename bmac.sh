@@ -8,8 +8,9 @@ APP_DIR="$BUILD_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
-# 模块缓存是编译临时产物，不应污染仓库中的构建输出。
-MODULE_CACHE_DIR="${TMPDIR:-/private/tmp}/local-music-player-module-cache"
+# 模块缓存是编译临时产物。放在本项目的 build 目录中，避免继承自
+# 其他用户或进程的系统临时缓存导致无权清理。
+MODULE_CACHE_DIR="$BUILD_DIR/module-cache"
 SOURCE_DIR="$ROOT_DIR/MacMusicPlayer"
 ICON_SOURCE="$SOURCE_DIR/Assets/AppIcon.icns"
 
@@ -17,9 +18,18 @@ log() {
   printf '[本地音乐器] %s\n' "$1"
 }
 
+BUILD_STARTED_AT=$SECONDS
+STEP_STARTED_AT=$SECONDS
+
+log_step_time() {
+  local elapsed=$((SECONDS - STEP_STARTED_AT))
+  log "  ↳ 本步骤耗时 ${elapsed}s"
+}
+
 log '1/5 清理上次构建产物…'
 rm -rf "$APP_DIR" "$MODULE_CACHE_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$MODULE_CACHE_DIR"
+log_step_time
 
 # The checked-in ICNS is the canonical asset. Keeping it avoids an iconutil
 # compatibility issue on current macOS releases during local builds.
@@ -75,16 +85,21 @@ SWIFT
   iconutil -c icns "$ICONSET_DIR" -o "$RESOURCES_DIR/AppIcon.icns"
 fi
 
+STEP_STARTED_AT=$SECONDS
+log '2/5 复制应用图标…'
 if [[ -f "$ICON_SOURCE" ]]; then
-  log '2/5 复制应用图标…'
   cp "$ICON_SOURCE" "$RESOURCES_DIR/AppIcon.icns"
+else
+  log "  ↳ 未找到图标：$ICON_SOURCE"
 fi
+log_step_time
 
 SOURCES=()
 while IFS= read -r file; do
   SOURCES+=("$file")
 done < <(find "$SOURCE_DIR" -name "*.swift" | sort)
 
+STEP_STARTED_AT=$SECONDS
 log "3/5 编译 ${#SOURCES[@]} 个 Swift 源文件…"
 swiftc \
   "${SOURCES[@]}" \
@@ -96,7 +111,9 @@ swiftc \
   -framework SwiftUI \
   -framework AVFoundation \
   -framework CryptoKit
+log_step_time
 
+STEP_STARTED_AT=$SECONDS
 log '4/5 写入应用元数据…'
 cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -136,6 +153,9 @@ cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+log_step_time
 
-log '5/5 构建完成。'
+STEP_STARTED_AT=$SECONDS
+log "5/5 构建完成，总耗时 $((SECONDS - BUILD_STARTED_AT))s。"
+log_step_time
 printf '%s\n' "$APP_DIR"
