@@ -68,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let sideCurrentTime = NSTextField(labelWithString: AppText.zeroDuration)
     let sideDuration = NSTextField(labelWithString: AppText.zeroDuration)
     let sideSeek = PomegranateSlider(value: 0, minValue: 0, maxValue: 100, target: nil, action: nil)
+    let miniVolume = NSSlider(value: UserDefaults.standard.object(forKey: "playbackVolume") as? Double ?? 1, minValue: 0, maxValue: 1, target: nil, action: nil)
 
     let nowCard = NSView()
     let nowCover = NSImageView()
@@ -84,6 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let currentTime = NSTextField(labelWithString: AppText.zeroDuration)
     let durationTime = NSTextField(labelWithString: AppText.zeroDuration)
     let seekBar = PomegranateSlider(value: 0, minValue: 0, maxValue: 100, target: nil, action: nil)
+    let detailVolume = NSSlider(value: UserDefaults.standard.object(forKey: "playbackVolume") as? Double ?? 1, minValue: 0, maxValue: 1, target: nil, action: nil)
     let lyricsStack = NSStackView()
     let lyricsStatus = NSTextField(labelWithString: "自动匹配同名 .lrc")
 
@@ -140,7 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
            let icon = NSImage(contentsOf: iconURL) {
-            NSApp.applicationIconImage = icon
+            NSApp.applicationIconImage = UIHelpers.dockIcon(from: icon)
         }
         buildWindow()
         buildSidebar()
@@ -158,6 +160,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 2. 👈 【新增】此时 tracks 已经从本地文件夹加载完毕，立刻恢复上一次的待播清单
         restorePlaybackQueue()
         showMainWindow()
+        DispatchQueue.main.async { [weak self] in
+            self?.dismissSearchFocus()
+        }
 
         NotificationCenter.default.addObserver(
             self,
@@ -165,6 +170,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: .playerDidFinishPlaying,
             object: nil
         )
+        installPlaybackShortcuts()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -187,13 +193,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
+    func dismissSearchFocus() {
+        window.endEditing(for: nil)
+        window.makeFirstResponder(nil)
+    }
+
     private func observeAppearanceChanges() {
-        NotificationCenter.default.addObserver(
-                self,
-                selector: #selector(appearanceDidChange),
-                name: NSNotification.Name("AppleInterfaceThemeChangedNotification"), // 👈 监听 macOS 核心主题切换
-                object: nil
-                )
+        // macOS posts this notification when the system appearance changes.
+        NotificationCenter.default.addObserver(self, selector: #selector(appearanceDidChange), name: NSNotification.Name("AppleInterfaceThemeChangedNotification"), object: nil)
     }
 
     @objc private func appearanceDidChange() {
@@ -204,12 +211,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         root.applyBackground(Theme.windowBackground)
         miniPlayer.applyBackground(Theme.miniPlayerBackground)
         nowCard.applyBackground(Theme.nowPlayingBackground)
+        playerAlbumPanel?.applyBackground(Theme.nowPlayingBackground)
+        playerLyricsPanel?.applyBackground(Theme.panelBackground)
+        playerQueuePanel?.applyBackground(Theme.panelBackground)
+        libraryPanel?.applyBackground(Theme.panelBackground)
+        libraryQueuePanel?.applyBackground(Theme.panelBackground)
         renderTracks()
         // renderRecent()
         renderFolders()
         renderPlaylists()
         renderPendingQueue()
         updatePlaybackModeButtons()
+        window.contentView?.needsDisplay = true
+    }
+
+    private func installPlaybackShortcuts() {
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty,
+                  !(NSApp.keyWindow?.firstResponder is NSTextView || NSApp.keyWindow?.firstResponder is NSSearchField)
+            else { return event }
+            switch event.keyCode {
+            case 49: // Space
+                self.togglePlay()
+                return nil
+            case 123: // Left arrow
+                self.playPrevious()
+                return nil
+            case 124: // Right arrow
+                self.playNext()
+                return nil
+            default:
+                return event
+            }
+        }
     }
     /// 1. 🔂 单曲循环处理：原地重播当前歌曲
     func handleSingleLoop() {

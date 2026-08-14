@@ -120,14 +120,21 @@ extension AppDelegate {
         [ prevButton, playButton, nextButton, repeatButton].forEach(configureIconButton)
         playButton.contentTintColor = Theme.accent
 
-        let stack = NSStackView(views: [top, progress, controls])
+        miniVolume.controlSize = .small
+        miniVolume.toolTip = "音量"
+        let miniVolumeIcon = NSImageView(image: UIHelpers.symbolImage("speaker.wave.2.fill", pointSize: 14, color: Theme.secondaryText) ?? NSImage())
+        let volume = NSStackView(views: [miniVolumeIcon, miniVolume])
+        volume.orientation = .horizontal
+        volume.alignment = .centerY
+        volume.spacing = 8
+        let stack = NSStackView(views: [top, progress, controls, volume])
         stack.orientation = .vertical
         stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
         miniPlayer.addSubview(stack)
 
         NSLayoutConstraint.activate([
-            miniPlayer.heightAnchor.constraint(equalToConstant: 178),
+            miniPlayer.heightAnchor.constraint(equalToConstant: 208),
             miniCover.widthAnchor.constraint(equalToConstant: 58),
             miniCover.heightAnchor.constraint(equalToConstant: 58),
             sideCurrentTime.widthAnchor.constraint(equalToConstant: 38),
@@ -402,7 +409,7 @@ extension AppDelegate {
         albumPanel.applyCardStyle(cornerRadius: 12)
         albumPanel.applyBackground(Theme.nowPlayingBackground)
         albumPanel.translatesAutoresizingMaskIntoConstraints = false
-        albumPanel.setContentHuggingPriority(.required, for: .horizontal)
+        albumPanel.setContentHuggingPriority(.defaultLow, for: .horizontal)
         albumPanel.edgeInsets = NSEdgeInsets(top: 30, left: 28, bottom: 30, right: 28)
 
         detailCover.image = UIHelpers.placeholderArtwork(size: 360)
@@ -438,7 +445,14 @@ extension AppDelegate {
         seek.alignment = .centerY
         seek.spacing = 8
 
-        [detailCover, detailTitle, detailArtist, detailFolder, controls, seek].forEach { albumPanel.addArrangedSubview($0) }
+        detailVolume.toolTip = "音量"
+        let detailVolumeIcon = NSImageView(image: UIHelpers.symbolImage("speaker.wave.2.fill", pointSize: 14, color: Theme.secondaryText) ?? NSImage())
+        let volume = NSStackView(views: [detailVolumeIcon, detailVolume])
+        volume.orientation = .horizontal
+        volume.alignment = .centerY
+        volume.spacing = 8
+
+        [detailCover, detailTitle, detailArtist, detailFolder, controls, seek, volume].forEach { albumPanel.addArrangedSubview($0) }
 
         playerQueuePanel = makePanel(title: AppText.queue, trailing: pendingCountLabel)
         configureStack(pendingTrackStack)
@@ -453,46 +467,48 @@ extension AppDelegate {
         playerLyricsPanel.addArrangedSubview(lyricsScrollView)
         playerLyricsPanel.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
-        configureQueueButton(playerQueueButton)
-        let playerHeader = NSStackView(views: [backButton, NSView(), playerQueueButton])
+        // The detail page intentionally focuses on artwork and lyrics. Queue
+        // management remains available from the library page.
+        let playerHeader = NSStackView(views: [backButton, NSView()])
         playerHeader.orientation = .horizontal
         playerHeader.alignment = .centerY
         playerHeader.spacing = 12
         playerHeader.translatesAutoresizingMaskIntoConstraints = false
 
-        let playerContent = NSStackView(views: [albumPanel, playerLyricsPanel, playerQueuePanel])
+        let playerContent = NSStackView(views: [albumPanel, playerLyricsPanel])
         playerContent.orientation = .horizontal
         playerContent.spacing = 18
         playerContent.alignment = .top
+        playerContent.distribution = .fill
         playerContent.translatesAutoresizingMaskIntoConstraints = false
 
         playerPage.addSubview(playerHeader)
         playerPage.addSubview(playerContent)
 
-        playerAlbumWidthConstraint = albumPanel.widthAnchor.constraint(equalTo: playerPage.widthAnchor, multiplier: 0.42)
+        // Cover information and lyrics occupy the available width in a 2:3 ratio.
+        playerAlbumWidthConstraint = albumPanel.widthAnchor.constraint(equalTo: playerLyricsPanel.widthAnchor, multiplier: 2.0 / 3.0)
 
         NSLayoutConstraint.activate([
             playerHeader.leadingAnchor.constraint(equalTo: playerPage.leadingAnchor, constant: 34),
             playerHeader.trailingAnchor.constraint(equalTo: playerPage.trailingAnchor, constant: -34),
-            playerHeader.topAnchor.constraint(equalTo: playerPage.topAnchor, constant: 28),
+            playerHeader.topAnchor.constraint(equalTo: playerPage.topAnchor, constant: 50),
 
             playerContent.leadingAnchor.constraint(equalTo: playerPage.leadingAnchor, constant: 34),
             playerContent.trailingAnchor.constraint(equalTo: playerPage.trailingAnchor, constant: -34),
-            playerContent.topAnchor.constraint(equalTo: playerHeader.bottomAnchor, constant: 36),
+            playerContent.topAnchor.constraint(equalTo: playerHeader.bottomAnchor, constant: 24),
             playerContent.bottomAnchor.constraint(equalTo: playerPage.bottomAnchor, constant: -34),
 
-            albumPanel.heightAnchor.constraint(equalTo: playerLyricsPanel.heightAnchor),
+            albumPanel.heightAnchor.constraint(equalTo: playerContent.heightAnchor),
             // scr.trailingAnchor.constraint(equalTo: playerLyricsPanel.trailingAnchor,constant: -12),
 
             playerAlbumWidthConstraint,
 
-            detailCover.widthAnchor.constraint(equalToConstant: 300),
+            detailCover.widthAnchor.constraint(equalToConstant: 220),
             detailCover.heightAnchor.constraint(equalTo: detailCover.widthAnchor),
             seek.widthAnchor.constraint(equalTo: albumPanel.widthAnchor, constant: -56),
             currentTime.widthAnchor.constraint(equalToConstant: 42),
             durationTime.widthAnchor.constraint(equalToConstant: 42),
 
-            playerQueuePanel.heightAnchor.constraint(equalTo: playerContent.heightAnchor),
             playerLyricsPanel.heightAnchor.constraint(equalTo: playerContent.heightAnchor)
         ])
     }
@@ -569,7 +585,7 @@ extension AppDelegate {
         let titleLabel = NSTextField(labelWithString: title)
         titleLabel.font = .systemFont(ofSize: 16, weight: .bold)
         titleLabel.textColor = Theme.text
-        let headerViews = trailing.map { [titleLabel, NSView(), $0] } ?? [titleLabel]
+        let headerViews: [NSView] = trailing.map { [titleLabel, NSView(), $0] } ?? [titleLabel]
         let header = NSStackView(views: headerViews)
         header.orientation = .horizontal
         header.alignment = .centerY
@@ -595,7 +611,6 @@ extension AppDelegate {
         stack.alignment = .centerX
         stack.distribution = .fill
         stack.spacing = 18
-        stack.edgeInsets = NSEdgeInsets(top: 24, left: 24, bottom: 24, right: 24)
         stack.translatesAutoresizingMaskIntoConstraints = false
     }
 }

@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$ROOT_DIR/build"
-APP_NAME="音乐"
+APP_NAME="本地音乐器"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -13,10 +13,17 @@ MODULE_CACHE_DIR="${TMPDIR:-/private/tmp}/local-music-player-module-cache"
 SOURCE_DIR="$ROOT_DIR/MacMusicPlayer"
 ICON_SOURCE="$SOURCE_DIR/Assets/AppIcon.icns"
 
+log() {
+  printf '[本地音乐器] %s\n' "$1"
+}
+
+log '1/5 清理上次构建产物…'
 rm -rf "$APP_DIR" "$MODULE_CACHE_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$MODULE_CACHE_DIR"
 
-if [[ -f "$ICON_SOURCE" ]]; then
+# The checked-in ICNS is the canonical asset. Keeping it avoids an iconutil
+# compatibility issue on current macOS releases during local builds.
+if false; then
   ICONSET_DIR="$BUILD_DIR/AppIcon.iconset"
   ICON_RENDERER="$BUILD_DIR/render_app_icon"
   rm -rf "$ICONSET_DIR"
@@ -68,11 +75,17 @@ SWIFT
   iconutil -c icns "$ICONSET_DIR" -o "$RESOURCES_DIR/AppIcon.icns"
 fi
 
+if [[ -f "$ICON_SOURCE" ]]; then
+  log '2/5 复制应用图标…'
+  cp "$ICON_SOURCE" "$RESOURCES_DIR/AppIcon.icns"
+fi
+
 SOURCES=()
 while IFS= read -r file; do
   SOURCES+=("$file")
 done < <(find "$SOURCE_DIR" -name "*.swift" | sort)
 
+log "3/5 编译 ${#SOURCES[@]} 个 Swift 源文件…"
 swiftc \
   "${SOURCES[@]}" \
   -o "$MACOS_DIR/$APP_NAME" \
@@ -80,9 +93,11 @@ swiftc \
   -target arm64-apple-macosx13.0 \
   -Xcc -fmodules-cache-path="$MODULE_CACHE_DIR" \
   -framework AppKit \
+  -framework SwiftUI \
   -framework AVFoundation \
   -framework CryptoKit
 
+log '4/5 写入应用元数据…'
 cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -92,13 +107,13 @@ cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
   <key>CFBundleDevelopmentRegion</key>
   <string>zh_CN</string>
   <key>CFBundleExecutable</key>
-  <string>音乐</string>
+  <string>本地音乐器</string>
   <key>CFBundleIdentifier</key>
   <string>local.music.player.native</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>音乐</string>
+  <string>本地音乐器</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
   <key>CFBundleIconName</key>
@@ -122,4 +137,5 @@ cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-echo "$APP_DIR"
+log '5/5 构建完成。'
+printf '%s\n' "$APP_DIR"

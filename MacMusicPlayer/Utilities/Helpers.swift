@@ -29,6 +29,18 @@ enum UIHelpers {
         return image
     }
 
+    /// Inset the source image so the Dock presentation has the same visual
+    /// scale as a standard macOS app icon.
+    static func dockIcon(from icon: NSImage, scale: CGFloat = 0.80) -> NSImage {
+        let image = NSImage(size: icon.size)
+        image.lockFocus()
+        let width = icon.size.width * scale
+        let height = icon.size.height * scale
+        icon.draw(in: NSRect(x: (icon.size.width - width) / 2, y: (icon.size.height - height) / 2, width: width, height: height))
+        image.unlockFocus()
+        return image
+    }
+
     static func roundedImageView(size: CGFloat) -> NSImageView {
         let imageView = NSImageView()
         imageView.wantsLayer = true
@@ -181,13 +193,13 @@ enum TrackScanner {
             }
         }
 
-        return audioURLs.map { fileURL in
-
-            let cachedDetail = songDetailCache[fileURL.deletingPathExtension().lastPathComponent]
-
+        let tracks = audioURLs.map { fileURL in
             let flacMetadata = fileURL.pathExtension.lowercased() == "flac" ? FLACMetadataReader.read(from: fileURL) : nil
             let title = flacMetadata?.title?.nonEmpty ?? fileURL.deletingPathExtension().lastPathComponent
             let artist = flacMetadata?.artist?.nonEmpty ?? "未知艺术家"
+            let provisionalID = Track.stableID(artist: artist, title: title)
+            let cachedDetail = songDetailCache[provisionalID]
+                ?? songDetailCache[fileURL.deletingPathExtension().lastPathComponent]
 
             let base = fileURL.deletingPathExtension().path.lowercased()
             let folderPath = fileURL.deletingLastPathComponent().path.lowercased()
@@ -208,6 +220,24 @@ enum TrackScanner {
                 embeddedArtwork: flacMetadata?.artwork ?? ArtworkLoader.loadEmbedded(from: fileURL),
                 embeddedLyrics: cachedDetail?.songQrc ?? flacMetadata?.lyrics
             )
+        }
+        saveSongSidecars(tracks, in: detailDir)
+        return tracks
+    }
+
+    private static func saveSongSidecars(_ tracks: [Track], in directory: URL) {
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            for track in tracks {
+                let file = directory.appendingPathComponent(track.id).appendingPathExtension("json")
+                guard !FileManager.default.fileExists(atPath: file.path) else { continue }
+                let detail = SaveSongExt(id: track.id, title: track.title, artist: track.artist, albumName: nil, songQrc: track.embeddedLyrics, artworkPath: track.artworkURL, songFilePath: track.url, originMid: nil)
+                try encoder.encode(detail).write(to: file, options: .atomic)
+            }
+        } catch {
+            NSLog("Could not write song JSON sidecars: \(error.localizedDescription)")
         }
     }
 }
@@ -322,17 +352,26 @@ enum FLACMetadataReader {
 
 enum ArtworkLoader {
 
+    private final class ArtworkResult: @unchecked Sendable {
+        var image: NSImage?
+    }
+
     static func loadEmbedded(from url: URL) -> NSImage? {
         let asset = AVAsset(url: url)
-        for item in asset.commonMetadata where item.commonKey == .commonKeyArtwork {
-            if let data = item.value as? Data {
-                return NSImage(data: data)
-            }
-            if let data = item.dataValue {
-                return NSImage(data: data)
+        let semaphore = DispatchSemaphore(value: 0)
+        let result = ArtworkResult()
+        Task {
+            defer { semaphore.signal() }
+            guard let metadata = try? await asset.load(.commonMetadata) else { return }
+            for item in metadata where item.commonKey == .commonKeyArtwork {
+                if let data = try? await item.load(.dataValue), let image = NSImage(data: data) {
+                    result.image = image
+                    return
+                }
             }
         }
-        return nil
+        semaphore.wait()
+        return result.image
     }
 
     static func artwork(for track: Track) -> NSImage {

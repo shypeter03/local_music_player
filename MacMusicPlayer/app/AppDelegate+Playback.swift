@@ -4,23 +4,18 @@ import AVFoundation
 extension AppDelegate {
 
     func play(track: Track, resetQueue: Bool = true) {
-        do {
-            if resetQueue {
-                resetPlaybackQueue(with: filteredTracks.isEmpty ? tracks : filteredTracks, startingAt: track)
-            }
-            PlayerManager.shared.loadAndPlay(url: track.url)
-            currentTrack = track
-            currentIndex = playbackQueue.firstIndex(where: { $0.id == track.id }) ?? -1
-            highLightActive = -1
-            isAdvancingAtEnd = false
-            loadLyrics(for: track)
-            updateCurrentUI()
-            startTimer()
-
-            savePlaybackQueue()// 保存播放状态
-        } catch {
-            statusLabel.stringValue = AppText.playbackFailed
+        if resetQueue {
+            resetPlaybackQueue(with: filteredTracks.isEmpty ? tracks : filteredTracks, startingAt: track)
         }
+        PlayerManager.shared.loadAndPlay(url: track.url)
+        currentTrack = track
+        currentIndex = playbackQueue.firstIndex(where: { $0.id == track.id }) ?? -1
+        highLightActive = -1
+        isAdvancingAtEnd = false
+        loadLyrics(for: track)
+        updateCurrentUI()
+        startTimer()
+        savePlaybackQueue()
     }
 
     @objc func togglePlay() {
@@ -116,6 +111,12 @@ extension AppDelegate {
         isAdvancingAtEnd = false
         PlayerManager.shared.seek(progress: sender.doubleValue / 100.0)
         updateProgress()
+    }
+
+    @objc func volumeChanged(_ sender: NSSlider) {
+        let value = Float(sender.doubleValue)
+        PlayerManager.shared.volume = value
+        [miniVolume, detailVolume].forEach { $0.doubleValue = Double(value) }
     }
 
     func addRecent(_ id: String) {
@@ -254,39 +255,29 @@ extension AppDelegate {
         let safeURL = URL(fileURLWithPath: track.url.path)
         let asset = AVAsset(url: safeURL)
         
-        asset.loadValuesAsynchronously(forKeys: ["metadata", "commonMetadata"]) { [weak self] in
-            guard let self = self else { return }
-            
-            var error: NSError? = nil
-            let metadataStatus = asset.statusOfValue(forKey: "metadata", error: &error)
-            
-            if metadataStatus == .failed {
-                print("❌ AVAsset 读取音频文件元数据失败: \(error?.localizedDescription ?? "未知错误")")
-                DispatchQueue.main.async {
-                    self.lyricsStatus.stringValue = AppText.noLyrics
-                    self.lyricsStack.addArrangedSubview(UIHelpers.emptyLabel(AppText.lyricsExternalHint))
-                }
-                return
-            }
-            
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+            let metadata = try await asset.load(.metadata)
+            let commonMetadata = try await asset.load(.commonMetadata)
             var lyricsText: String? = nil
             
             // 🌟 【M4A / iTunes 格式歌词匹配】
             // 匹配 identifier 为 "itsk/%A9lyr" (即 AVMetadataIdentifier.itunesMetadataLyrics)
             // 🌟 仅保留 identifier.rawValue 的安全字符串比对，彻底解决不同 SDK 版本的编译冲突
-            if let m4aLyricItem = asset.metadata.first(where: { item in
+            if let m4aLyricItem = metadata.first(where: { item in
                     return item.identifier?.rawValue == "itsk/%A9lyr"
                     }) {
-                lyricsText = m4aLyricItem.stringValue
+                lyricsText = try? await m4aLyricItem.load(.stringValue)
             }
             // 🌟 【FLAC / Vorbis 格式歌词匹配】
             // 如果 M4A 没匹配到，匹配 FLAC 的 LYRICS / UNSYNCEDLYRICS 标签
             if lyricsText == nil {
-                for item in asset.metadata {
+                for item in metadata {
                     if let keyString = item.key as? String {
                         let upperKey = keyString.uppercased()
                         if upperKey == "LYRICS" || upperKey == "UNSYNCEDLYRICS" || upperKey == "UNSYNCED LYRICS" {
-                            lyricsText = item.stringValue
+                            lyricsText = try? await item.load(.stringValue)
                             break
                         }
                     }
@@ -295,21 +286,28 @@ extension AppDelegate {
             
             // 🌟 【通用格式歌词匹配】
             // 🌟 修复：直接对比 commonKey 的 rawValue，彻底避开 SDK 命名空间推断报错
-            if lyricsText == nil, let commonLyricItem = asset.commonMetadata.first(where: { item in
+            if lyricsText == nil, let commonLyricItem = commonMetadata.first(where: { item in
                     if let commonKey = item.commonKey {
                     return commonKey.rawValue == "lyrics" || commonKey.rawValue == "lld3"
                     }
                     return false
                     }) {
-                lyricsText = commonLyricItem.stringValue
+                lyricsText = try? await commonLyricItem.load(.stringValue)
             }
 
-            // 返回主线程解析并渲染 UI
+            // Capture an immutable value before crossing back to the main queue.
+            let resolvedLyrics = lyricsText
             DispatchQueue.main.async {
-                if let text = lyricsText, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if let text = resolvedLyrics, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     self.renderLyricText(text, isEmbedded: true)
                 } else {
                     // 彻底没有歌词
+                    self.lyricsStatus.stringValue = AppText.noLyrics
+                    self.lyricsStack.addArrangedSubview(UIHelpers.emptyLabel(AppText.lyricsExternalHint))
+                }
+            }
+            } catch {
+                DispatchQueue.main.async {
                     self.lyricsStatus.stringValue = AppText.noLyrics
                     self.lyricsStack.addArrangedSubview(UIHelpers.emptyLabel(AppText.lyricsExternalHint))
                 }
@@ -337,18 +335,24 @@ extension AppDelegate {
             label.alignment = .center
             label.lineBreakMode = .byWordWrapping
             label.maximumNumberOfLines = 0
+            label.cell?.wraps = true
+            label.cell?.usesSingleLineMode = false
             label.translatesAutoresizingMaskIntoConstraints = false
 
             label.setContentHuggingPriority(.required, for: .vertical)
             label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
             label.wantsLayer = true
             label.layer?.cornerRadius = 8
             return label
         }
         
         // 添加到 StackView
-        self.lyricLabels.forEach { self.lyricsStack.addArrangedSubview($0) }
+        self.lyricLabels.forEach { label in
+            self.lyricsStack.addArrangedSubview(label)
+            // Constrain against the clip view rather than the stack's
+            // intrinsic width so wrapping follows the widened lyrics panel.
+            label.widthAnchor.constraint(equalTo: self.lyricsScrollView.contentView.widthAnchor, constant: -48).isActive = true
+        }
         
         // 重新高亮当前进度的歌词
         if let player = PlayerManager.shared.player {
@@ -504,8 +508,7 @@ extension AppDelegate {
     
     /// 将一首歌静默加载到 miniplayer，准备好播放状态但不直接播放（保持暂停）
     func loadTrackWithoutPlaying(_ track: Track) {
-        do {
-            PlayerManager.shared.load(url: track.url)
+        PlayerManager.shared.load(url: track.url)
             
             currentTrack = track
             currentIndex = playbackQueue.firstIndex(where: { $0.id == track.id }) ?? -1
@@ -515,10 +518,7 @@ extension AppDelegate {
             loadLyrics(for: track)
             updateCurrentUI()
             updatePlayButtons() // 确保按钮状态是“暂停/未播放”
-            updatePlaybackModeButtons()
-        } catch {
-            print("静默载入歌曲失败: \(error)")
-        }
+        updatePlaybackModeButtons()
     }
     /// 当歌曲自然播放结束时，系统会自动回调这个方法
     @objc func handlePlayerFinished() {

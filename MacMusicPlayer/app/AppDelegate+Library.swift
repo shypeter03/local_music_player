@@ -62,6 +62,10 @@ extension AppDelegate {
             $0.target = self
             $0.action = #selector(seekChanged(_:))
         }
+        [miniVolume, detailVolume].forEach {
+            $0.target = self
+            $0.action = #selector(volumeChanged(_:))
+        }
         playbackOrderPopup.contentTintColor = Theme.accent
         updatePlaybackModeButtons()
     }
@@ -140,6 +144,7 @@ extension AppDelegate {
             nextTracks.append(contentsOf: scanned)
         }
         tracks = nextTracks.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        LibraryJSONStore.save(tracks.map(TrackJSONRecord.init), named: "tracks")
         migratePlaylistsAfterScan()
         saveFolders()
         // renderFolderFilter()
@@ -238,6 +243,7 @@ extension AppDelegate {
             }
         }
         renderTracks()
+        dismissSearchFocus()
     }
 
     func netWorkSeach() {
@@ -294,6 +300,7 @@ extension AppDelegate {
             
                     self.filteredTracks = temTracks
                     self.renderTracks()
+                    self.dismissSearchFocus()
                 }
                 
             } catch {
@@ -307,7 +314,6 @@ extension AppDelegate {
     func netDetail(mid :String ,completion: @escaping (Track?) -> Void) {
         print("开始 = \(TimeHelper.now())")
         LoadingHUD.shared.show("正在加载歌曲...")
-        let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard let url = buildURL(baseURL:AppText.listURL,params: [
             "mid": mid,
             "type": "json"]) 
@@ -402,6 +408,9 @@ extension AppDelegate {
             )
             row.target = self
             row.action = #selector(trackRowClicked(_:))
+            row.deleteButton.target = self
+            row.deleteButton.action = #selector(deleteLocalTrack(_:))
+            row.deleteButton.identifier = NSUserInterfaceItemIdentifier(track.id)
             trackStack.addArrangedSubview(row)
         }
     }
@@ -497,6 +506,49 @@ extension AppDelegate {
         scanFolders()
     }
 
+    @objc func deleteLocalTrack(_ sender: NSButton) {
+        guard let id = sender.identifier?.rawValue,
+              let track = tracks.first(where: { $0.id == id }),
+              track.source == .local
+        else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "删除《\(track.title)》？"
+        alert.informativeText = "歌曲原文件和对应 JSON 信息将移到废纸篓，可在废纸篓中恢复。"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "移到废纸篓")
+        alert.addButton(withTitle: "取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        do {
+            let manager = FileManager.default
+            if manager.fileExists(atPath: track.url.path) {
+                try manager.trashItem(at: track.url, resultingItemURL: nil)
+            }
+            let sidecar = track.folderURL.appendingPathComponent("songDetail", isDirectory: true)
+                .appendingPathComponent(track.id).appendingPathExtension("json")
+            if manager.fileExists(atPath: sidecar.path) {
+                try manager.trashItem(at: sidecar, resultingItemURL: nil)
+            }
+            tracks.removeAll { $0.id == id }
+            playbackQueue.removeAll { $0.id == id }
+            recentIDs.removeAll { $0 == id }
+            playlists.indices.forEach { playlists[$0].trackIDs.removeAll { $0 == id } }
+            if currentTrack?.id == id {
+                PlayerManager.shared.stop()
+                currentTrack = nil
+            }
+            LibraryJSONStore.save(tracks.map(TrackJSONRecord.init), named: "tracks")
+            savePlaylists()
+            UserDefaults.standard.set(recentIDs, forKey: "recentTracks")
+            applySearch()
+            renderPlaylists()
+            renderPendingQueue()
+        } catch {
+            statusLabel.stringValue = "删除失败：\(error.localizedDescription)"
+        }
+    }
+
     @objc func trackRowClicked(_ sender: TrackRowView) {
         guard let track = filteredTracks.first(where: { $0.id == sender.trackID }) else {
             return
@@ -566,15 +618,20 @@ extension AppDelegate {
     // }
 
     func loadFolders() {
-        guard let data = UserDefaults.standard.data(forKey: "folders"),
-              let decoded = try? JSONDecoder().decode([SourceFolder].self, from: data)
-        else { return }
-        folders = decoded
+        if let decoded = LibraryJSONStore.load([SourceFolder].self, named: "folders") {
+            folders = decoded
+            return
+        }
+        // One-time migration from builds that stored the same Codable payload
+        // in UserDefaults.
+        if let data = UserDefaults.standard.data(forKey: "folders"),
+           let decoded = try? JSONDecoder().decode([SourceFolder].self, from: data) {
+            folders = decoded
+            saveFolders()
+        }
     }
 
     func saveFolders() {
-        if let data = try? JSONEncoder().encode(folders) {
-            UserDefaults.standard.set(data, forKey: "folders")
-        }
+        LibraryJSONStore.save(folders, named: "folders")
     }
 }

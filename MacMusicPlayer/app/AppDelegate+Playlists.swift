@@ -57,6 +57,9 @@ extension AppDelegate {
             )
             row.target = self
             row.action = #selector(trackRowClicked(_:))
+            row.deleteButton.target = self
+            row.deleteButton.action = #selector(deleteLocalTrack(_:))
+            row.deleteButton.identifier = NSUserInterfaceItemIdentifier(track.id)
             playlistTrackStack.addArrangedSubview(row)
         }
     }
@@ -202,20 +205,24 @@ extension AppDelegate {
     }
 
     func loadPlaylists() {
+        if let decoded = LibraryJSONStore.load([MusicPlaylist].self, named: "playlists") {
+            playlists = decoded
+            selectedPlaylistID = playlists.first?.id
+            renderPlaylists()
+            return
+        }
         guard let data = UserDefaults.standard.data(forKey: "playlists"),
-              let decoded = try? JSONDecoder().decode([MusicPlaylist].self, from: data)
-        else {
+              let decoded = try? JSONDecoder().decode([MusicPlaylist].self, from: data) else {
             renderPlaylists()
             return
         }
         playlists = decoded
         selectedPlaylistID = playlists.first?.id
+        savePlaylists()
         renderPlaylists()
     }
 
     func savePlaylists() {
-        if let data = try? JSONEncoder().encode(playlists) {
-            UserDefaults.standard.set(data, forKey: "playlists")
-        }
+        LibraryJSONStore.save(playlists, named: "playlists")
     }
 }

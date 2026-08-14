@@ -5,6 +5,7 @@ final class TrackRowView: NSControl {
     private let subtitleLabel = NSTextField(labelWithString: "")
     private let metaLabel = NSTextField(labelWithString: "")
     private let coverView = NSImageView()
+    let deleteButton = NSButton(title: "删除", target: nil, action: nil)
 
     var trackID: String = ""
 
@@ -38,6 +39,11 @@ final class TrackRowView: NSControl {
         addSubview(titleLabel)
         addSubview(subtitleLabel)
         addSubview(metaLabel)
+        deleteButton.bezelStyle = .inline
+        deleteButton.contentTintColor = Theme.destructive
+        deleteButton.toolTip = "移到废纸篓，并删除歌曲的 JSON 信息"
+        deleteButton.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(deleteButton)
 
         [titleLabel, subtitleLabel].forEach { $0.translatesAutoresizingMaskIntoConstraints = false }
         metaLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -58,8 +64,10 @@ final class TrackRowView: NSControl {
             titleLabel.bottomAnchor.constraint(equalTo: centerYAnchor, constant: -1),
             subtitleLabel.topAnchor.constraint(equalTo: centerYAnchor, constant: 2),
 
-            metaLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-            metaLabel.centerYAnchor.constraint(equalTo: centerYAnchor)
+            metaLabel.trailingAnchor.constraint(equalTo: deleteButton.leadingAnchor, constant: -8),
+            metaLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
+            deleteButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
+            deleteButton.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
     }
 
@@ -93,5 +101,6 @@ final class TrackRowView: NSControl {
         titleLabel.textColor = dimmed ? Theme.disabledText : Theme.text
         subtitleLabel.textColor = dimmed ? Theme.tertiaryText : Theme.secondaryText
         metaLabel.textColor = dimmed ? Theme.tertiaryText : Theme.accent
+        deleteButton.isHidden = selectionMode || track.source == .remote
     }
 }

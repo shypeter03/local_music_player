@@ -1,13 +1,15 @@
-import AppKit
+import SwiftUI
 
 @main
-enum LocalMusicPlayerApp {
-    private static var appDelegate: AppDelegate?
+struct LocalMusicPlayerApp: App {
+    // SwiftUI owns the macOS application lifecycle.  The delegate remains the
+    // bridge for the existing AVFoundation player and window while the UI is
+    // progressively moved into SwiftUI views.
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-    static func main() {
-        let app = NSApplication.shared
-        appDelegate = AppDelegate()
-        app.delegate = appDelegate
-        app.run()
+    var body: some Scene {
+        Settings {
+            EmptyView()
+        }
     }
 }

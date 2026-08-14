@@ -26,6 +26,14 @@ class PlayerManager: NSObject {
     var hasPlayer: Bool {
         player != nil
     }
+
+    var volume: Float {
+        get { player?.volume ?? Float(UserDefaults.standard.double(forKey: "playbackVolume")) }
+        set {
+            player?.volume = newValue
+            UserDefaults.standard.set(Double(newValue), forKey: "playbackVolume")
+        }
+    }
     func pause() {
         player?.pause()
     }
@@ -61,6 +69,8 @@ class PlayerManager: NSObject {
         } else {
             player?.replaceCurrentItem(with: item)
         }
+        let saved = UserDefaults.standard.object(forKey: "playbackVolume") as? Double ?? 1
+        player?.volume = Float(saved)
     }
 
     /// 开始播放当前已加载的内容
