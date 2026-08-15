@@ -188,7 +188,7 @@ private struct MiniPlayer: View {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(state.currentTrack?.title ?? "还没有播放歌曲").font(.headline).lineLimit(1)
                         Text(state.currentTrack?.artist ?? "从文件夹导入音乐开始").font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        Text(playbackModeTitle).font(.caption2.weight(.medium)).foregroundStyle(playerRed)
+                        // Text(playbackModeTitle).font(.caption2.weight(.medium)).foregroundStyle(playerRed)
                     }
                     Spacer(minLength: 0)
                 }.frame(maxWidth: .infinity, alignment: .leading)
@@ -199,10 +199,10 @@ private struct MiniPlayer: View {
                 Text(time(state.duration)).frame(width: 31, alignment: .trailing)
             }.font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             HStack(spacing: 13) {
-                CircleControl(icon: repeatIcon) { state.cycleRepeatMode() }
                 CircleControl(icon: "backward.fill") { state.playPrevious() }
                 CircleControl(icon: state.isPlaying ? "pause.fill" : "play.fill", emphasized: true) { state.togglePlayback() }
                 CircleControl(icon: "forward.fill") { state.playNext() }
+                CircleControl(icon: repeatIcon) { state.cycleRepeatMode() }
             }
             HStack(spacing: 7) {
                 Image(systemName: "speaker.wave.2").foregroundStyle(playerRed)
@@ -250,13 +250,17 @@ private struct PlayerPage: View {
             CoverArt(track: state.currentTrack, side: artworkSide)
             Text(state.currentTrack?.title ?? "请选择一首歌").font(.title.bold()).lineLimit(1)
             Text(state.currentTrack?.artist ?? "").foregroundStyle(.secondary)
-            ProgressSlider(state: state)
-            HStack { Text(time(state.progress)); Spacer(); Text(time(state.duration)) }.font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            HStack {
+                Text(time(state.progress)).frame(width: 31, alignment: .leading)
+                ProgressSlider(state: state)
+                Text(time(state.duration)).frame(width: 31, alignment: .trailing)
+            }.font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            // HStack { Text(time(state.progress)); Spacer(); Text(time(state.duration)) }.font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             HStack(spacing: 18) {
-                CircleControl(icon: repeatIcon) { state.cycleRepeatMode() }
                 CircleControl(icon: "backward.fill") { state.playPrevious() }
                 CircleControl(icon: state.isPlaying ? "pause.fill" : "play.fill", emphasized: true) { state.togglePlayback() }
                 CircleControl(icon: "forward.fill") { state.playNext() }
+                CircleControl(icon: repeatIcon) { state.cycleRepeatMode() }
             }
             HStack { Image(systemName: "speaker.wave.2").foregroundStyle(playerRed); Slider(value: Binding(get: { state.volume }, set: { state.setVolume($0) }), in: 0...1).tint(playerRed) }
             Spacer(minLength: 0)
@@ -282,8 +286,9 @@ private struct PlayerPage: View {
                         LazyVStack(spacing: 18) {
                             ForEach(Array(state.lyrics.enumerated()), id: \.offset) { index, line in
                                 Text(line.text)
-                                    .font(index == activeLyric ? .headline : .body)
+                                    .font(.body)
                                     .foregroundStyle(index == activeLyric ? playerRed : .secondary)
+                                    .scaleEffect(index == activeLyric ? 1.25 : 1.0)
                                     .multilineTextAlignment(.center)
                                     .frame(maxWidth: .infinity, alignment: .center)
                                     .id(index)

@@ -71,6 +71,7 @@ final class MusicAppState: NSObject, ObservableObject {
         var components = URLComponents(string: AppText.listURL)
         components?.queryItems = [URLQueryItem(name: "msg", value: query), URLQueryItem(name: "type", value: "json")]
         guard let url = components?.url else { return }
+        print("Searching online for :\(query)")
         Task {
             defer { isSearchingOnline = false }
             guard let (data, _) = try? await URLSession.shared.data(from: url),
@@ -137,6 +138,7 @@ final class MusicAppState: NSObject, ObservableObject {
 
     func play(_ track: Track, resetQueue: Bool = true) {
         currentTrack = track
+        print("Playing track:\(track.title) by \(track.artist)")
         if resetQueue || !playbackQueue.contains(where: { $0.id == track.id }) {
             let source = filteredTracks.isEmpty ? tracks : filteredTracks
             if let index = source.firstIndex(where: { $0.id == track.id }) {

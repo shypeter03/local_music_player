@@ -101,7 +101,6 @@ class PlayerManager: NSObject {
 
 
     @objc private func itemDidPlayToEnd(_ notification: Notification) {
-        print("🎵 播放结束")
 
         NotificationCenter.default.post(
             name: .playerDidFinishPlaying,
