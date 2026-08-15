@@ -1,5 +1,3 @@
-import AppKit
-
 enum AppText {
     // MARK: - 基础应用信息
     static let appName = "Ocean"

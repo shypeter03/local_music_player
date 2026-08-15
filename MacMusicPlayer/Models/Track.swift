@@ -1,4 +1,3 @@
-import AppKit
 import CryptoKit
 import Foundation
 
@@ -18,7 +17,7 @@ struct Track {
     let ext: String
     let artworkURL: URL?
     let lyricURL: URL?
-    let embeddedArtwork: NSImage?
+    let embeddedArtwork: Data?
     let embeddedLyrics: String?
 
     var source: TrackSource = .local

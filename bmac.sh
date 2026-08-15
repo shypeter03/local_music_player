@@ -27,7 +27,13 @@ log_step_time() {
 }
 
 log '1/5 清理上次构建产物…'
-rm -rf "$APP_DIR" "$MODULE_CACHE_DIR"
+# Swift framework modules are expensive to rebuild. Retain their cache between
+# normal builds; set CLEAN_MODULE_CACHE=1 only when a clean compiler cache is
+# explicitly required.
+rm -rf "$APP_DIR"
+if [[ "${CLEAN_MODULE_CACHE:-0}" == "1" ]]; then
+  rm -rf "$MODULE_CACHE_DIR"
+fi
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$MODULE_CACHE_DIR"
 log_step_time
 
@@ -97,7 +103,17 @@ log_step_time
 SOURCES=()
 while IFS= read -r file; do
   SOURCES+=("$file")
-done < <(find "$SOURCE_DIR" -name "*.swift" | sort)
+done < <(find "$SOURCE_DIR" -name "*.swift" \
+  ! -path "*/app/AppDelegate*.swift" \
+  ! -path "*/Views/TrackRowView.swift" \
+  ! -path "*/Views/FolderRowView.swift" \
+  ! -path "*/Views/FlippedView.swift" \
+  ! -path "*/Views/PomegranateSlider.swift" \
+  ! -path "*/Models/LoadingHDU.swift" \
+  ! -path "*/Models/PlayerWindow.swift" \
+  ! -path "*/Extensions/NSView+Theme.swift" \
+  ! -path "*/Extensions/NSImage+Tint.swift" \
+  ! -path "*/app/Theme.swift" | sort)
 
 STEP_STARTED_AT=$SECONDS
 log "3/5 编译 ${#SOURCES[@]} 个 Swift 源文件…"

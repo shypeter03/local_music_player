@@ -1,131 +1,5 @@
-import AppKit
 import AVFoundation
 import Foundation
-
-enum UIHelpers {
-
-    static func formatTime(_ seconds: TimeInterval) -> String {
-        guard seconds.isFinite else { return "0:00" }
-        let total = max(0, Int(seconds))
-        return "\(total / 60):\(String(format: "%02d", total % 60))"
-    }
-
-    static func symbolImage(_ name: String, pointSize: CGFloat, color: NSColor) -> NSImage? {
-        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
-        return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config)?
-            .tinting(with: color)
-    }
-
-    static func placeholderArtwork(size: CGFloat) -> NSImage {
-        let image = NSImage(size: NSSize(width: size, height: size))
-        image.lockFocus()
-        let rect = NSRect(x: 0, y: 0, width: size, height: size)
-        let gradient = NSGradient(colors: [Theme.accent, Theme.accent.withAlphaComponent(0.65)])!
-        gradient.draw(in: rect, angle: 135)
-        let symbol = symbolImage("music.note", pointSize: size * 0.33, color: .white)
-        symbol?.draw(in: NSRect(x: size * 0.34, y: size * 0.34, width: size * 0.32, height: size * 0.32))
-        image.unlockFocus()
-        return image
-    }
-
-    /// Inset the source image so the Dock presentation has the same visual
-    /// scale as a standard macOS app icon.
-    static func dockIcon(from icon: NSImage, scale: CGFloat = 0.80) -> NSImage {
-        let image = NSImage(size: icon.size)
-        image.lockFocus()
-        let width = icon.size.width * scale
-        let height = icon.size.height * scale
-        icon.draw(in: NSRect(x: (icon.size.width - width) / 2, y: (icon.size.height - height) / 2, width: width, height: height))
-        image.unlockFocus()
-        return image
-    }
-
-    static func roundedImageView(size: CGFloat) -> NSImageView {
-        let imageView = NSImageView()
-        imageView.wantsLayer = true
-        imageView.layer?.cornerRadius = 8
-        imageView.layer?.masksToBounds = true
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        imageView.widthAnchor.constraint(equalToConstant: size).isActive = true
-        imageView.heightAnchor.constraint(equalToConstant: size).isActive = true
-        return imageView
-    }
-
-    static func emptyLabel(_ text: String) -> NSTextField {
-        let label = NSTextField(labelWithString: text)
-        label.textColor = Theme.secondaryText
-        label.alignment = .center
-        label.font = .systemFont(ofSize: 13)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.heightAnchor.constraint(equalToConstant: 46).isActive = true
-        return label
-    }
-
-    static func clear(_ stack: NSStackView) {
-        stack.arrangedSubviews.forEach {
-            stack.removeArrangedSubview($0)
-            $0.removeFromSuperview()
-        }
-    }
-
-    static func scrollView(containing stack: NSStackView) -> NSScrollView {
-        let document = FlippedView()
-        document.translatesAutoresizingMaskIntoConstraints = false
-        document.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: document.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: document.trailingAnchor),
-            stack.topAnchor.constraint(equalTo: document.topAnchor),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: document.bottomAnchor),
-            stack.widthAnchor.constraint(equalTo: document.widthAnchor)
-        ])
-
-        let scroll = NSScrollView()
-        scroll.documentView = document
-        scroll.hasVerticalScroller = false
-        scroll.autohidesScrollers = true
-        scroll.scrollerStyle = .overlay
-        scroll.autohidesScrollers = true
-        scroll.drawsBackground = false
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        let clipView = scroll.contentView
-        document.widthAnchor.constraint(equalTo: clipView.widthAnchor).isActive = true
-        scroll.contentView.postsBoundsChangedNotifications = true
-        return scroll
-    }
-    static func lyricScrollView(containing stack: NSStackView) -> NSScrollView {
-        let document = FlippedView()
-        document.translatesAutoresizingMaskIntoConstraints = false
-
-        document.addSubview(stack)
-
-        NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 24),
-            stack.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -24),
-
-            // 关键：左右留边，但整个 Stack 仍然铺满宽度
-            stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 24),
-            stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -24)
-        ])
-
-        let scroll = NSScrollView()
-        scroll.documentView = document
-
-        scroll.drawsBackground = false
-
-        // 不一直显示滚动条
-        scroll.hasVerticalScroller = false
-        scroll.autohidesScrollers = true
-
-        scroll.automaticallyAdjustsContentInsets = false
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-
-        document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor).isActive = true
-
-        return scroll
-    }
-}
 
 enum TrackScanner {
 
@@ -156,6 +30,10 @@ enum TrackScanner {
                     let sse = try? JSONDecoder().decode(SaveSongExt.self, from: data) {
                         // 建议：确保 JSON 中保存的 id 确实是基于同样的算法生成的
                         songDetailCache[sse.id] = sse
+                        // 下载文件使用稳定 ID 作为文件名；当音频本身没有
+                        // 完整标签时，也能在冷启动扫描中通过文件名找回标题、
+                        // 歌手、封面和歌词。
+                        songDetailCache[file.deletingPathExtension().lastPathComponent] = sse
                     }
                 }
             }
@@ -255,7 +133,7 @@ enum FLACMetadataReader {
         var title: String?
         var artist: String?
         var lyrics: String?
-        var artwork: NSImage?
+        var artwork: Data?
     }
 
     static func read(from url: URL) -> Metadata? {
@@ -320,7 +198,7 @@ enum FLACMetadataReader {
             .first
     }
 
-    private static func parsePicture(_ data: Data) -> NSImage? {
+    private static func parsePicture(_ data: Data) -> Data? {
         var offset = 0
         guard bigEndianUInt32(data, offset: &offset) != nil,
               let mimeLength = bigEndianUInt32(data, offset: &offset), offset + mimeLength <= data.count
@@ -332,7 +210,7 @@ enum FLACMetadataReader {
             guard bigEndianUInt32(data, offset: &offset) != nil else { return nil }
         }
         guard let imageLength = bigEndianUInt32(data, offset: &offset), offset + imageLength <= data.count else { return nil }
-        return NSImage(data: data.subdata(in: offset..<(offset + imageLength)))
+        return data.subdata(in: offset..<(offset + imageLength))
     }
 
     private static func littleEndianUInt32(_ data: Data, offset: inout Int) -> Int? {
@@ -353,10 +231,10 @@ enum FLACMetadataReader {
 enum ArtworkLoader {
 
     private final class ArtworkResult: @unchecked Sendable {
-        var image: NSImage?
+        var image: Data?
     }
 
-    static func loadEmbedded(from url: URL) -> NSImage? {
+    static func loadEmbedded(from url: URL) -> Data? {
         let asset = AVAsset(url: url)
         let semaphore = DispatchSemaphore(value: 0)
         let result = ArtworkResult()
@@ -364,8 +242,8 @@ enum ArtworkLoader {
             defer { semaphore.signal() }
             guard let metadata = try? await asset.load(.commonMetadata) else { return }
             for item in metadata where item.commonKey == .commonKeyArtwork {
-                if let data = try? await item.load(.dataValue), let image = NSImage(data: data) {
-                    result.image = image
+                if let data = try? await item.load(.dataValue) {
+                    result.image = data
                     return
                 }
             }
@@ -374,14 +252,8 @@ enum ArtworkLoader {
         return result.image
     }
 
-    static func artwork(for track: Track) -> NSImage {
-        if let image = track.embeddedArtwork {
-            return image
-        }
-        if let artworkURL = track.artworkURL, let image = NSImage(contentsOf: artworkURL) {
-            return image
-        }
-        return UIHelpers.placeholderArtwork(size: 360)
+    static func artworkData(for track: Track) -> Data? {
+        track.embeddedArtwork ?? track.artworkURL.flatMap { try? Data(contentsOf: $0) }
     }
 }
 
