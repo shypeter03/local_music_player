@@ -14,6 +14,7 @@ struct Track {
     let folderURL: URL
     let title: String
     let artist: String
+    let album: String?
     let ext: String
     let artworkURL: URL?
     let lyricURL: URL?

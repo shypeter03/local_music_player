@@ -92,6 +92,7 @@ enum TrackScanner {
                 folderURL: url,
                 title: finalTitle,
                 artist: finalArtist,
+                album: cachedDetail?.albumName ?? "",
                 ext: fileURL.pathExtension,
                 artworkURL: cachedDetail?.artworkPath ?? imageByBase[base] ?? coverByFolder[folderPath],
                 lyricURL: lyricByBase[base],

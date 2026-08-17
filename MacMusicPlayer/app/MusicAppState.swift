@@ -85,7 +85,7 @@ final class MusicAppState: NSObject, ObservableObject {
             else { return }
             onlineTracks = songs.map { song in
                 let id = Track.stableID(artist: song.singerName, title: song.songTitle)
-                return tracks.first(where: { $0.id == id }) ?? Track(id: id, folderID: song.songMid, url: url, folderURL: MusicDownloadManager.downloadsDirectory, title: song.songTitle, artist: song.singerName, ext: "", artworkURL: nil, lyricURL: nil, embeddedArtwork: nil, embeddedLyrics: nil, source: .remote, remoteURL: nil)
+                return tracks.first(where: { $0.id == id }) ?? Track(id: id, folderID: song.songMid, url: url, folderURL: MusicDownloadManager.downloadsDirectory, title: song.songTitle, artist: song.singerName, album:nil, ext: "", artworkURL: nil, lyricURL: nil, embeddedArtwork: nil, embeddedLyrics: nil, source: .remote, remoteURL: nil)
             }
         }
     }
@@ -295,7 +295,7 @@ final class MusicAppState: NSObject, ObservableObject {
         NowPlayingManager.shared.setTrack(
             title: track.title,
             artist: track.artist,
-            album: nil,
+            album: track.album,
             artwork: currentArtwork,
             duration: duration
         )
@@ -383,12 +383,13 @@ final class MusicAppState: NSObject, ObservableObject {
                   let song = try? JSONDecoder().decode(NetworkSong.self, from: data),
                   let saved = try? await MusicDownloadManager.saveTrackData(song: song)
             else { return }
-            let local = Track(id: Track.stableID(artist: song.singerName, title: song.songName), folderID: "downloaded", url: saved.audio, folderURL: MusicDownloadManager.downloadsDirectory, title: song.songName, artist: song.singerName, ext: song.viewExtension, artworkURL: saved.artwork, lyricURL: nil, embeddedArtwork: nil, embeddedLyrics: song.songLyric)
+            let local = Track(id: Track.stableID(artist: song.singerName, title: song.songName), folderID: "downloaded", url: saved.audio, folderURL: MusicDownloadManager.downloadsDirectory, title: song.songName, artist: song.singerName,album: song.albumName, ext: song.viewExtension, artworkURL: saved.artwork, lyricURL: nil, embeddedArtwork: nil, embeddedLyrics: song.songLyric)
             if !tracks.contains(where: { $0.id == local.id }) { tracks.append(local) }
             print("End downloading \(preview.title) ")
             play(local)
         }
     }
+
     private func loadNowPlayingArtwork(for track: Track) {
         guard let data = ArtworkLoader.artworkData(for: track),
             let image = NSImage(data: data) else {
