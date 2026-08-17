@@ -33,6 +33,8 @@ final class MusicAppState: NSObject, ObservableObject {
     @Published var repeatMode: RepeatMode = RepeatMode(rawValue: UserDefaults.standard.integer(forKey: "repeatMode")) ?? .off
     @Published var recentIDs: [String] = UserDefaults.standard.stringArray(forKey: "recentTracks") ?? []
 
+    @Published var currentArtwork: NSImage?
+
     private var timer: Timer?
     private var keyMonitor: Any?
 
@@ -49,6 +51,10 @@ final class MusicAppState: NSObject, ObservableObject {
             guard let self, !self.isEditingText else { return event }
             return self.handlePlaybackShortcut(event) ? nil : event
         }
+        // print("keyWindow:", NSApp.keyWindow)
+        // print("mainWindow:", NSApp.mainWindow)
+        // print("isKey:", NSApp.keyWindow?.isKeyWindow ?? false)
+        // print("firstResponder:", NSApp.keyWindow?.firstResponder ?? "nil")
         scanFolders()
     }
 
@@ -154,6 +160,9 @@ final class MusicAppState: NSObject, ObservableObject {
         saveQueue()
         loadLyrics(for: track)
         startTimer()
+
+         // 立即同步 macOS 正在播放
+        loadNowPlayingArtwork(for: track)
     }
 
     func togglePlayback() {
@@ -167,6 +176,7 @@ final class MusicAppState: NSObject, ObservableObject {
     }
 
     func playNext() {
+        print("play next ")
         guard !playbackQueue.isEmpty else { return }
         if repeatMode == .one, let currentTrack {
             play(currentTrack, resetQueue: false)
@@ -181,11 +191,15 @@ final class MusicAppState: NSObject, ObservableObject {
             return
         }
         let nextIndex = currentIndex + 1
+        print("play next currentIndex \(nextIndex)")
         if nextIndex < playbackQueue.count {
+            print("play next repeatMode \(repeatMode) next")
             selectNext(playbackQueue[nextIndex])
         } else if repeatMode == .all, let first = playbackQueue.first {
+            print("play next repeatMode \(repeatMode) all")
             selectNext(first)
         } else {
+            print("play next repeatMode \(repeatMode) else")
             PlayerManager.shared.stop()
             isPlaying = false
             progress = 0
@@ -269,6 +283,29 @@ final class MusicAppState: NSObject, ObservableObject {
         progress = PlayerManager.shared.currentTime
         duration = PlayerManager.shared.duration
         isPlaying = PlayerManager.shared.isPlaying
+        updateNowPlayingStatus()
+    }
+
+    @objc private func updateNowPlayingInfo() {
+        guard let track = currentTrack else {
+            NowPlayingManager.shared.clear()
+            return
+        }
+
+        NowPlayingManager.shared.setTrack(
+            title: track.title,
+            artist: track.artist,
+            album: nil,
+            artwork: currentArtwork,
+            duration: duration
+        )
+    }
+
+    @objc private func updateNowPlayingStatus() {
+        NowPlayingManager.shared.updateStatus(
+            elapsed: progress,
+            isPlaying: isPlaying
+        )
     }
 
     private func loadLyrics(for track: Track) {
@@ -287,7 +324,15 @@ final class MusicAppState: NSObject, ObservableObject {
     }
 
     private func handlePlaybackShortcut(_ event: NSEvent) -> Bool {
-        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty else { return false }
+        print("keyCode:", event.keyCode, "characters:", event.characters ?? "")
+        let modifiers = event.modifierFlags
+
+        guard !modifiers.contains(.command),
+            !modifiers.contains(.option),
+            !modifiers.contains(.control),
+            !modifiers.contains(.shift) else {
+            return false
+        }
         switch event.keyCode {
         case 49: // Space
             togglePlayback()
@@ -330,6 +375,7 @@ final class MusicAppState: NSObject, ObservableObject {
 
     private func downloadAndPlay(_ preview: Track) {
         Task {
+            print("Start downloading \(preview.title) ")
             var components = URLComponents(string: AppText.listURL)
             components?.queryItems = [URLQueryItem(name: "mid", value: preview.folderID), URLQueryItem(name: "type", value: "json")]
             guard let url = components?.url,
@@ -339,7 +385,19 @@ final class MusicAppState: NSObject, ObservableObject {
             else { return }
             let local = Track(id: Track.stableID(artist: song.singerName, title: song.songName), folderID: "downloaded", url: saved.audio, folderURL: MusicDownloadManager.downloadsDirectory, title: song.songName, artist: song.singerName, ext: song.viewExtension, artworkURL: saved.artwork, lyricURL: nil, embeddedArtwork: nil, embeddedLyrics: song.songLyric)
             if !tracks.contains(where: { $0.id == local.id }) { tracks.append(local) }
+            print("End downloading \(preview.title) ")
             play(local)
         }
+    }
+    private func loadNowPlayingArtwork(for track: Track) {
+        guard let data = ArtworkLoader.artworkData(for: track),
+            let image = NSImage(data: data) else {
+            currentArtwork = nil
+            updateNowPlayingInfo()
+            return
+        }
+
+        currentArtwork = image
+        updateNowPlayingInfo()
     }
 }

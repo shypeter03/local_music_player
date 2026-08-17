@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$ROOT_DIR/build"
-APP_NAME="本地音乐器"
+APP_NAME="Music"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
@@ -15,7 +15,7 @@ SOURCE_DIR="$ROOT_DIR/MacMusicPlayer"
 ICON_SOURCE="$SOURCE_DIR/Assets/AppIcon.icns"
 
 log() {
-  printf '[本地音乐器] %s\n' "$1"
+  printf '[Music] %s\n' "$1"
 }
 
 BUILD_STARTED_AT=$SECONDS
@@ -68,8 +68,8 @@ let config = NSImage.SymbolConfiguration(pointSize: rectSize * 0.54, weight: .bo
 let note = NSImage(systemSymbolName: "music.note", accessibilityDescription: nil)!.withSymbolConfiguration(config)!
 
 // 精确计算居中坐标
-let iconWidth = rectSize * 0.54
-let iconHeight = rectSize * 0.58
+let iconWidth = rectSize * 0.64
+let iconHeight = rectSize * 0.68
 let iconX = margin + (rectSize - iconWidth) / 2
 let iconY = margin + (rectSize - iconHeight) / 2 - (rectSize * 0.02) // 微调垂直重心
 
@@ -140,13 +140,13 @@ cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
   <key>CFBundleDevelopmentRegion</key>
   <string>zh_CN</string>
   <key>CFBundleExecutable</key>
-  <string>本地音乐器</string>
+  <string>Music</string>
   <key>CFBundleIdentifier</key>
   <string>local.music.player.native</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>本地音乐器</string>
+  <string>Music</string>
   <key>CFBundleIconFile</key>
   <string>AppIcon</string>
   <key>CFBundleIconName</key>

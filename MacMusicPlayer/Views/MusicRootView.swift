@@ -41,6 +41,9 @@ struct MusicRootView: View {
             if case let .success(urls) = result { state.addFolders(urls) }
         }
         .tint(playerRed)
+        .onAppear {
+            setupNowPlaying()
+        }
     }
 
     private func navigation(_ title: String, icon: String, page: MusicAppState.Page) -> some View {
@@ -52,6 +55,31 @@ struct MusicRootView: View {
             }.padding(.horizontal, 12).padding(.vertical, 10)
         }.buttonStyle(.plain).foregroundStyle(state.page == page ? playerRed : .primary)
             .background(state.page == page ? playerRed.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 10))
+    }
+    private func setupNowPlaying() {
+        NowPlayingManager.shared.onPlay = {
+            if !state.isPlaying {
+                state.togglePlayback()
+            }
+        }
+
+        NowPlayingManager.shared.onPause = {
+            if state.isPlaying {
+                state.togglePlayback()
+            }
+        }
+
+        NowPlayingManager.shared.onNext = {
+            state.playNext()
+        }
+
+        NowPlayingManager.shared.onPrevious = {
+            state.playPrevious()
+        }
+
+        NowPlayingManager.shared.onSeek = { position in
+            state.seek(to: position)
+        }
     }
 }
 
@@ -202,7 +230,7 @@ private struct MiniPlayer: View {
                 CircleControl(icon: "backward.fill") { state.playPrevious() }
                 CircleControl(icon: state.isPlaying ? "pause.fill" : "play.fill", emphasized: true) { state.togglePlayback() }
                 CircleControl(icon: "forward.fill") { state.playNext() }
-                CircleControl(icon: repeatIcon) { state.cycleRepeatMode() }
+                CircleControl(icon: repeatIcon, dimmed: state.repeatMode == .off) { state.cycleRepeatMode() }
             }
             HStack(spacing: 7) {
                 Image(systemName: "speaker.wave.2").foregroundStyle(playerRed)
@@ -217,8 +245,37 @@ private struct MiniPlayer: View {
 }
 
 private struct CircleControl: View {
-    let icon: String; var emphasized = false; let action: () -> Void
-    var body: some View { Button(action: action) { Image(systemName: icon).font(.system(size: emphasized ? 12 : 9, weight: .bold)).frame(width: emphasized ? 34 : 29, height: emphasized ? 34 : 29).foregroundStyle(emphasized ? .white : playerRed).background(emphasized ? playerRed : playerRed.opacity(0.12), in: Circle()) }.buttonStyle(.plain) }
+    let icon: String
+    var emphasized = false
+    var dimmed = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: emphasized ? 12 : 9, weight: .bold))
+                .frame(
+                        width: emphasized ? 34 : 29,
+                        height: emphasized ? 34 : 29
+                        )
+                .foregroundStyle(
+                        emphasized
+                        ? .white
+                        : dimmed
+                        ? .secondary
+                        : playerRed
+                        )
+                .background(
+                        emphasized
+                        ? playerRed
+                        : dimmed
+                        ? Color.secondary.opacity(0.12)
+                        : playerRed.opacity(0.12),
+                        in: Circle()
+                        )
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 private struct QueuePanel: View {
@@ -236,7 +293,7 @@ private struct PlayerPage: View {
             let lyricWidth = availableWidth * 3 / 5
             let artworkSide = min(coverWidth - 56, geometry.size.height * 0.53)
             HStack(alignment: .center, spacing: 18) {
-                albumPanel(artworkSide: max(180, artworkSide))
+                albumPanel(artworkSide: max(200, artworkSide))
                     .frame(width: coverWidth, height: geometry.size.height)
                 lyricsPanel
                     .frame(width: lyricWidth, height: geometry.size.height)
@@ -255,12 +312,11 @@ private struct PlayerPage: View {
                 ProgressSlider(state: state)
                 Text(time(state.duration)).frame(width: 31, alignment: .trailing)
             }.font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-            // HStack { Text(time(state.progress)); Spacer(); Text(time(state.duration)) }.font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             HStack(spacing: 18) {
                 CircleControl(icon: "backward.fill") { state.playPrevious() }
                 CircleControl(icon: state.isPlaying ? "pause.fill" : "play.fill", emphasized: true) { state.togglePlayback() }
                 CircleControl(icon: "forward.fill") { state.playNext() }
-                CircleControl(icon: repeatIcon) { state.cycleRepeatMode() }
+                CircleControl(icon: repeatIcon, dimmed: state.repeatMode == .off) { state.cycleRepeatMode() }
             }
             HStack { Image(systemName: "speaker.wave.2").foregroundStyle(playerRed); Slider(value: Binding(get: { state.volume }, set: { state.setVolume($0) }), in: 0...1).tint(playerRed) }
             Spacer(minLength: 0)
@@ -286,7 +342,7 @@ private struct PlayerPage: View {
                         LazyVStack(spacing: 18) {
                             ForEach(Array(state.lyrics.enumerated()), id: \.offset) { index, line in
                                 Text(line.text)
-                                    .font(.body)
+                                    .font(.title3)
                                     .foregroundStyle(index == activeLyric ? playerRed : .secondary)
                                     .scaleEffect(index == activeLyric ? 1.25 : 1.0)
                                     .multilineTextAlignment(.center)
