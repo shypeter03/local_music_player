@@ -7,6 +7,8 @@ class PlayerManager: NSObject {
     // 使用 AVPlayer，支持本地和远程
     var player: AVPlayer?
 
+    private var seekID = UUID()
+
     var isPlaying: Bool {
         player?.timeControlStatus != .paused
     }
@@ -83,21 +85,41 @@ class PlayerManager: NSObject {
         play()
     }
 
-    func seek(progress: Double) {
+    func seek(
+        progress: Double,
+        completion: ((Double) -> Void)? = nil
+    ) {
         guard let player,
             let item = player.currentItem else {
             return
         }
 
         let duration = item.duration.seconds
+
         guard duration.isFinite, duration > 0 else {
             return
         }
 
-        let seconds = progress * duration
+        let clampedProgress = min(max(progress, 0), 1)
+        let targetSeconds = clampedProgress * duration
 
-        player.seek(to: CMTime(seconds: seconds,preferredTimescale: 600))
-    }   
+        let targetTime = CMTime(
+            seconds: targetSeconds,
+            preferredTimescale: 600
+        )
+
+        player.seek(
+            to: targetTime,
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        ) { finished in
+            guard finished else { return }
+
+            DispatchQueue.main.async {
+                completion?(targetSeconds)
+            }
+        }
+    }
 
 
     @objc private func itemDidPlayToEnd(_ notification: Notification) {

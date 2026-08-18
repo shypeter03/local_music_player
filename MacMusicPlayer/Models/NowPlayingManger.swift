@@ -93,6 +93,7 @@ final class NowPlayingManager {
         print("🎵 NOW PLAYING TRACK")
         print("title:", title)
         print("artist:", artist ?? "nil")
+        print("album:", album ?? "nil")
         print("duration:", duration)
     }
 
@@ -110,10 +111,11 @@ final class NowPlayingManager {
 
         center.nowPlayingInfo = info
         center.playbackState = isPlaying ? .playing : .paused
-
-        print("🎵 NOW PLAYING STATUS")
+        print("-----------------------------")
         print("elapsed:", elapsed)
         print("isPlaying:", isPlaying)
+        print("-----------------------------")
+
     }
 
 

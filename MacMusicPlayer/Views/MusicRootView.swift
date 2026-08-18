@@ -369,4 +369,14 @@ private struct CoverArt: View {
     var body: some View { Group { if let track, let data = ArtworkLoader.artworkData(for: track), let image = NSImage(data: data) { Image(nsImage: image).resizable().scaledToFill() } else { Image(systemName: "music.note").resizable().scaledToFit().padding(side * 0.25).foregroundStyle(playerRed) } }.frame(width: side, height: side).background(playerRed.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: max(8, side * 0.08))) }
 }
 
-private func time(_ seconds: Double) -> String { guard seconds.isFinite else { return "0:00" }; return String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60) }
+private func time(_ seconds: Double) -> String {
+    guard seconds.isFinite else { return "0:00" }
+
+    let total = Int(seconds.rounded())
+
+    return String(
+        format: "%d:%02d",
+        total / 60,
+        total % 60
+    )
+}

@@ -173,6 +173,8 @@ final class MusicAppState: NSObject, ObservableObject {
         }
         isPlaying.toggle()
         isPlaying ? PlayerManager.shared.resume() : PlayerManager.shared.pause()
+
+        updateNowPlayingStatus()
     }
 
     func playNext() {
@@ -200,9 +202,7 @@ final class MusicAppState: NSObject, ObservableObject {
             selectNext(first)
         } else {
             print("play next repeatMode \(repeatMode) else")
-            PlayerManager.shared.stop()
-            isPlaying = false
-            progress = 0
+            togglePlayback()
         }
     }
 
@@ -246,8 +246,15 @@ final class MusicAppState: NSObject, ObservableObject {
     }
 
     func seek(to value: Double) {
-        PlayerManager.shared.seek(progress: duration > 0 ? value / duration : 0)
-        progress = value
+        let ratio = duration > 0 ? value / duration : 0
+
+        PlayerManager.shared.seek(progress: ratio) { [weak self] seconds in
+            guard let self else { return }
+
+            self.progress = seconds
+        }
+        updateNowPlayingStatus()
+
     }
 
     func setVolume(_ value: Double) { volume = value; PlayerManager.shared.volume = Float(value) }
@@ -276,29 +283,33 @@ final class MusicAppState: NSObject, ObservableObject {
 
     private func startTimer() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(timeInterval: 0.25, target: self, selector: #selector(updatePlaybackClock), userInfo: nil, repeats: true)
+        timer = Timer.scheduledTimer(timeInterval: 0.1, target: self, selector: #selector(updatePlaybackClock), userInfo: nil, repeats: true)
     }
 
     @objc private func updatePlaybackClock() {
         progress = PlayerManager.shared.currentTime
         duration = PlayerManager.shared.duration
         isPlaying = PlayerManager.shared.isPlaying
-        updateNowPlayingStatus()
     }
 
     @objc private func updateNowPlayingInfo() {
-        guard let track = currentTrack else {
-            NowPlayingManager.shared.clear()
-            return
-        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self else { return }
 
-        NowPlayingManager.shared.setTrack(
-            title: track.title,
-            artist: track.artist,
-            album: track.album,
-            artwork: currentArtwork,
-            duration: duration
-        )
+            guard let track = self.currentTrack else {
+                NowPlayingManager.shared.clear()
+                return
+            }
+            print("update info duration:", duration)
+            NowPlayingManager.shared.setTrack(
+                title: track.title,
+                artist: track.artist,
+                album: track.album,
+                artwork: currentArtwork,
+                duration: duration
+            )
+            updateNowPlayingStatus()
+        }
     }
 
     @objc private func updateNowPlayingStatus() {
