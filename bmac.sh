@@ -26,7 +26,7 @@ log_step_time() {
   log "  ↳ 本步骤耗时 ${elapsed}s"
 }
 
-log '1/5 清理上次构建产物…'
+log '1/6 清理上次构建产物…'
 # Swift framework modules are expensive to rebuild. Retain their cache between
 # normal builds; set CLEAN_MODULE_CACHE=1 only when a clean compiler cache is
 # explicitly required.
@@ -92,7 +92,7 @@ SWIFT
 fi
 
 STEP_STARTED_AT=$SECONDS
-log '2/5 复制应用图标…'
+log '2/6 复制应用图标…'
 if [[ -f "$ICON_SOURCE" ]]; then
   cp "$ICON_SOURCE" "$RESOURCES_DIR/AppIcon.icns"
 else
@@ -115,8 +115,34 @@ done < <(find "$SOURCE_DIR" -name "*.swift" \
   ! -path "*/Extensions/NSImage+Tint.swift" \
   ! -path "*/app/Theme.swift" | sort)
 
+METAL_SOURCE="$SOURCE_DIR/Assets/AuroraBackground.metal"
+METAL_AIR="$BUILD_DIR/AuroraBackground.air"
+METAL_LIB="$RESOURCES_DIR/AuroraBackground.metallib"
+
 STEP_STARTED_AT=$SECONDS
-log "3/5 编译 ${#SOURCES[@]} 个 Swift 源文件…"
+log '3/6 编译 Metal shader…'
+
+if [[ ! -f "$METAL_SOURCE" ]]; then
+  log "错误：找不到 Metal shader：$METAL_SOURCE"
+  exit 1
+fi
+
+xcrun -sdk macosx metal \
+  -c "$METAL_SOURCE" \
+  -o "$METAL_AIR" \
+  -mmacosx-version-min=13.0
+
+xcrun -sdk macosx metallib \
+  "$METAL_AIR" \
+  -o "$METAL_LIB"
+
+rm -f "$METAL_AIR"
+
+log "  ↳ Metal library：$METAL_LIB"
+log_step_time
+
+STEP_STARTED_AT=$SECONDS
+log "4/6 编译 ${#SOURCES[@]} 个 Swift 源文件…"
 swiftc \
   "${SOURCES[@]}" \
   -o "$MACOS_DIR/$APP_NAME" \
@@ -130,7 +156,7 @@ swiftc \
 log_step_time
 
 STEP_STARTED_AT=$SECONDS
-log '4/5 写入应用元数据…'
+log '5/6 写入应用元数据…'
 cat >"$CONTENTS_DIR/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -172,6 +198,6 @@ PLIST
 log_step_time
 
 STEP_STARTED_AT=$SECONDS
-log "5/5 构建完成，总耗时 $((SECONDS - BUILD_STARTED_AT))s。"
+log "6/6 构建完成，总耗时 $((SECONDS - BUILD_STARTED_AT))s。"
 log_step_time
 printf '%s\n' "$APP_DIR"

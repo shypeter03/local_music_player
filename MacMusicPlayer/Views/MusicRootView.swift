@@ -44,6 +44,9 @@ struct MusicRootView: View {
 
                     case .player:
                         PlayerPage(state: state)
+                        .background {
+                            PlayerPageGlassBackground()
+                        }
                     }
                 }
             }
@@ -302,8 +305,8 @@ private struct PlayerPage: View {
     var body: some View {
         GeometryReader { geometry in
             let availableWidth = geometry.size.width - 18
-            let coverWidth = availableWidth * 2 / 5
-            let lyricWidth = availableWidth * 3 / 5
+            let coverWidth = availableWidth * 2.3 / 5
+            let lyricWidth = availableWidth * 2.7 / 5
             let artworkSide = min(coverWidth - 56, geometry.size.height * 0.53)
             HStack(alignment: .center, spacing: 18) {
                 albumPanel(artworkSide: max(200, artworkSide))
@@ -331,7 +334,7 @@ private struct PlayerPage: View {
                 CircleControl(icon: "forward.fill") { state.playNext() }
                 CircleControl(icon: repeatIcon, dimmed: state.repeatMode == .off) { state.cycleRepeatMode() }
             }
-            HStack { Image(systemName: "speaker.wave.2").foregroundStyle(playerRed); Slider(value: Binding(get: { state.volume }, set: { state.setVolume($0) }), in: 0...1).tint(playerRed) }
+            HStack { Image(systemName: "speaker.slash").foregroundStyle(playerRed); Slider(value: Binding(get: { state.volume }, set: { state.setVolume($0) }), in: 0...1).tint(playerRed);Image(systemName: "speaker.wave.3").foregroundStyle(playerRed)}
             Spacer(minLength: 0)
         }.padding(28)
     }
@@ -354,9 +357,12 @@ private struct PlayerPage: View {
                         LazyVStack(spacing: 18) {
                             ForEach(Array(state.lyrics.enumerated()), id: \.offset) { index, line in
                                 Text(line.text)
-                                    .font(.title3)
+                                    .font(.title)
                                     .foregroundStyle(index == activeLyric ? playerRed : .secondary)
                                     .scaleEffect(index == activeLyric ? 1.25 : 1.0)
+                                    .blur(radius: index == activeLyric ? 0 : 1)          // 非当前行高斯模糊
+                                    .opacity(index == activeLyric ? 1.0 : 0.55)            // 非当前行再压暗一点
+                                    .animation(.easeInOut(duration: 0.3), value: activeLyric)  // 切换时平滑过渡
                                     .multilineTextAlignment(.center)
                                     .frame(maxWidth: .infinity, alignment: .center)
                                     .id(index)
@@ -377,7 +383,7 @@ private struct ProgressSlider: View {
 
 private struct CoverArt: View {
     let track: Track?; let side: CGFloat
-    var body: some View { Group { if let track, let data = ArtworkLoader.artworkData(for: track), let image = NSImage(data: data) { Image(nsImage: image).resizable().scaledToFill() } else { Image(systemName: "music.note").resizable().scaledToFit().padding(side * 0.25).foregroundStyle(playerRed) } }.frame(width: side, height: side).background(playerRed.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: max(8, side * 0.08))) }
+    var body: some View { Group { if let track, let data = ArtworkLoader.artworkData(for: track), let image = NSImage(data: data) { Image(nsImage: image).resizable().scaledToFill() } else { Image(systemName: "music.note").resizable().scaledToFit().padding(side * 0.25).foregroundStyle(playerRed) } }.frame(width: side, height: side).background(playerRed.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: max(8, side * 0.08))).shadow(color: .black.opacity(0.35), radius: 22, x: 0, y: 10) }
 }
 
 private struct PB: View {
@@ -417,4 +423,33 @@ private func time(_ seconds: Double) -> String {
         total / 60,
         total % 60
     )
+}
+
+private struct PlayerPageGlassBackground: View {
+
+    var body: some View {
+        ZStack {
+
+            // ① 很轻的毛玻璃
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(0.12)
+
+            // ② 非常轻的玻璃高光
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(0.05),
+                            .clear,
+                            .clear,
+                            .white.opacity(0.025)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        }
+        .allowsHitTesting(false)
+    }
 }

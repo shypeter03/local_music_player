@@ -38,6 +38,10 @@ struct LocalMusicPlayerApp: App {
     var body: some Scene {
         WindowGroup {
             MusicRootView()
+            // .background(
+            //         PlayerPageGlassBackground()
+            //             .ignoresSafeArea(.container, edges: .top)  // 关键
+            //     )
         }
         .windowStyle(.hiddenTitleBar)
     }

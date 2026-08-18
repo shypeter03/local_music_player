@@ -191,6 +191,31 @@ float fbm(float2 p)
     return value;
 }
 
+float3 boostSaturation(
+    float3 color,
+    float amount
+) {
+    float luminance =
+        dot(
+            color,
+            float3(
+                0.2126,
+                0.7152,
+                0.0722
+            )
+        );
+
+    return clamp(
+        mix(
+            float3(luminance),
+            color,
+            amount
+        ),
+        0.0,
+        1.0
+    );
+}
+
 
 // ============================================================
 // Flow Field
@@ -253,7 +278,7 @@ float2 flowField(
     return
         p
         + (r - 0.5)
-        * 1.15;
+        * 1.65;
 }
 
 
@@ -393,7 +418,7 @@ fragment float4 auroraFragment(
     // --------------------------------------------------------
 
     float time =
-        uniforms.time * 0.16;
+        uniforms.time * 0.5;
 
 
     // --------------------------------------------------------
@@ -527,37 +552,34 @@ fragment float4 auroraFragment(
         organicMass(
             flow,
             center0,
-            1.10,
+            0.78,
             time,
             1.3
         );
-
 
     float mass1 =
         organicMass(
             flow,
             center1,
-            1.05,
+            0.82,
             time,
             4.7
         );
-
 
     float mass2 =
         organicMass(
             flow,
             center2,
-            0.95,
+            0.72,
             time,
             7.4
         );
-
 
     float mass3 =
         organicMass(
             flow,
             center3,
-            0.90,
+            0.68,
             time,
             10.2
         );
@@ -582,12 +604,11 @@ fragment float4 auroraFragment(
     // ========================================================
 
     float3 baseColor =
-        (
-            c0
-            + c1
-            + c2
-            + c3
-        ) * 0.25;
+        c0 * 0.55
+        +
+        c1 * 0.20
+        +
+        c2 * 0.25;
 
 
     // ========================================================
@@ -607,6 +628,12 @@ fragment float4 auroraFragment(
         /
         max(total, 0.001);
 
+    blobColor =
+        boostSaturation(
+            blobColor,
+            1.08
+        );
+
 
     // ========================================================
     // 混合
@@ -615,19 +642,17 @@ fragment float4 auroraFragment(
     // 也至少保留 65% 的基础专辑色。
     // ========================================================
 
-    float blobPresence =
-        smoothstep(
-            0.0,
-            1.8,
-            total
-        );
 
 
     float3 color =
         mix(
             baseColor,
             blobColor,
-            blobPresence * 0.72
+            smoothstep(
+                0.0,
+                1.35,
+                total
+            ) * 0.62
         );
 
 
@@ -651,6 +676,29 @@ fragment float4 auroraFragment(
             - time * 0.025
         );
 
+    float ribbonNoise =
+        fbm(
+            flow * 2.8
+            +
+            float2(
+                time * 0.10,
+                -time * 0.07
+            )
+        );
+
+    float ribbon =
+        smoothstep(
+            0.58,
+            0.82,
+            ribbonNoise
+        );
+
+    color =
+      mix(
+          color,
+          color * 1.15,
+          ribbon * 0.20
+      );
 
     // ========================================================
     // 用噪声在颜色之间缓慢切换
@@ -690,16 +738,15 @@ fragment float4 auroraFragment(
 
     float lightVariation =
         smoothstep(
-            0.25,
+            0.18,
             0.78,
             mediumFlow
         );
 
-
     color *=
-        0.88
+        0.92
         +
-        lightVariation * 0.20;
+        lightVariation * 0.24;
 
 
     // ========================================================
@@ -753,22 +800,6 @@ fragment float4 auroraFragment(
     // 不再大面积压黑
     // ========================================================
 
-    color *= 0.92;
-
-
-    // ========================================================
-    // 非常轻微的深色混合
-    //
-    // 只负责让文字有一点可读性，
-    // 绝对不能让背景变成黑色。
-    // ========================================================
-
-    color =
-        mix(
-            color,
-            color * 0.82,
-            0.08
-        );
 
 
     // ========================================================
@@ -783,16 +814,15 @@ fragment float4 auroraFragment(
 
     float vignette =
         smoothstep(
-            0.28,
-            0.88,
+            0.42,
+            1.05,
             distanceFromCenter
         );
-
 
     color *=
         mix(
             1.0,
-            0.52,
+            0.86,
             vignette
         );
 
