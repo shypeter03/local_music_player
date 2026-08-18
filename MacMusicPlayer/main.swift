@@ -39,5 +39,6 @@ struct LocalMusicPlayerApp: App {
         WindowGroup {
             MusicRootView()
         }
+        .windowStyle(.hiddenTitleBar)
     }
 }

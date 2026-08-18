@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-private struct DynamicArtworkBackground: View {
+ struct DynamicArtworkBackground: View {
     let track: Track?
 
     @State private var offset: CGSize = .zero

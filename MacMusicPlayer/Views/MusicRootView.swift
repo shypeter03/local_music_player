@@ -26,16 +26,28 @@ struct MusicRootView: View {
                 .background(.ultraThinMaterial)
                 .overlay(alignment: .trailing) { Rectangle().fill(playerDivider).frame(width: 1) }
         } detail: {
-            Group {
+            ZStack {
+                PlayerBackground(currentArtwork: state.currentArtwork)
                 Group {
                     switch state.page {
-                    case .library: LibraryPage(state: state)
-                    case .folders: FoldersPage(state: state, importingFolders: $importingFolders)
-                    case .playlists: PlaylistsPage(state: state)
-                    case .player: PlayerPage(state: state)
+                    case .library:
+                        LibraryPage(state: state)
+
+                    case .folders:
+                        FoldersPage(
+                            state: state,
+                            importingFolders: $importingFolders
+                        )
+
+                    case .playlists:
+                        PlaylistsPage(state: state)
+
+                    case .player:
+                        PlayerPage(state: state)
                     }
                 }
-            }.frame(minWidth: 840, minHeight: 620).background {PlayerBackground()}
+            }
+            .frame(minWidth: 840, minHeight: 620)
         }
         .fileImporter(isPresented: $importingFolders, allowedContentTypes: [.folder], allowsMultipleSelection: true) { result in
             if case let .success(urls) = result { state.addFolders(urls) }
@@ -368,7 +380,7 @@ private struct CoverArt: View {
     var body: some View { Group { if let track, let data = ArtworkLoader.artworkData(for: track), let image = NSImage(data: data) { Image(nsImage: image).resizable().scaledToFill() } else { Image(systemName: "music.note").resizable().scaledToFit().padding(side * 0.25).foregroundStyle(playerRed) } }.frame(width: side, height: side).background(playerRed.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: max(8, side * 0.08))) }
 }
 
-private struct PlayerBackground: View {
+private struct PB: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
