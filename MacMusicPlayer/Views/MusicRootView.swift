@@ -56,6 +56,7 @@ struct MusicRootView: View {
         }.buttonStyle(.plain).foregroundStyle(state.page == page ? playerRed : .primary)
             .background(state.page == page ? playerRed.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 10))
     }
+
     private func setupNowPlaying() {
         NowPlayingManager.shared.onPlay = {
             if !state.isPlaying {

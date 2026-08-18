@@ -118,6 +118,19 @@ final class NowPlayingManager {
 
     }
 
+    func setEmptyState() {
+        let info: [String: Any] = [
+            MPMediaItemPropertyTitle: "Ocean",
+            MPMediaItemPropertyArtist: "暂无播放歌曲",
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: 0,
+            MPMediaItemPropertyPlaybackDuration: 0,
+            MPNowPlayingInfoPropertyPlaybackRate: 0
+        ]
+
+        let center = MPNowPlayingInfoCenter.default()
+        center.nowPlayingInfo = info
+        center.playbackState = .paused
+    }
 
     func clear() {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil

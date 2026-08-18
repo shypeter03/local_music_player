@@ -51,11 +51,11 @@ final class MusicAppState: NSObject, ObservableObject {
             guard let self, !self.isEditingText else { return event }
             return self.handlePlaybackShortcut(event) ? nil : event
         }
-        // print("keyWindow:", NSApp.keyWindow)
-        // print("mainWindow:", NSApp.mainWindow)
-        // print("isKey:", NSApp.keyWindow?.isKeyWindow ?? false)
-        // print("firstResponder:", NSApp.keyWindow?.firstResponder ?? "nil")
         scanFolders()
+
+        // 冷恢复上次播放状态
+        NowPlayingManager.shared.setEmptyState()
+
     }
 
     deinit {
@@ -168,7 +168,7 @@ final class MusicAppState: NSObject, ObservableObject {
     func togglePlayback() {
         guard PlayerManager.shared.hasPlayer else {
             if let currentTrack { play(currentTrack, resetQueue: false) }
-            else if let first = tracks.first { play(first) }
+            else if tracks.count > 0 { playNext() }
             return
         }
         isPlaying.toggle()
