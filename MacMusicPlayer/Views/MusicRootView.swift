@@ -35,7 +35,7 @@ struct MusicRootView: View {
                     case .player: PlayerPage(state: state)
                     }
                 }
-            }.frame(minWidth: 840, minHeight: 620).background(playerCanvas)
+            }.frame(minWidth: 840, minHeight: 620).background {PlayerBackground()}
         }
         .fileImporter(isPresented: $importingFolders, allowedContentTypes: [.folder], allowsMultipleSelection: true) { result in
             if case let .success(urls) = result { state.addFolders(urls) }
@@ -102,7 +102,7 @@ private struct LibraryPage: View {
                 }.labelsHidden().frame(width: 90)
                     .onChange(of: state.searchMode) { _ in if state.searchMode == .online { state.searchOnline() } }
                 TextField("搜索歌名、艺术家", text: $state.searchText, onCommit: { if state.searchMode == .online { state.searchOnline() } }).textFieldStyle(.roundedBorder).frame(width: 240)
-            }.padding(20).musicCard(cornerRadius: 18)
+            }.padding(20)
             selectionBar.padding(.horizontal, 4)
             HStack(alignment: .top, spacing: 18) {
                 trackList
@@ -139,7 +139,7 @@ private struct LibraryPage: View {
                 else { state.select(track) }
             } selected: { state.selectedTrackIDs.contains(track.id) }
         }.listStyle(.inset).scrollContentBackground(.hidden)
-            .padding(8).musicCard(cornerRadius: 18)
+            .padding(8)
     }
 }
 
@@ -169,7 +169,7 @@ private struct PlaylistsPage: View {
                 HStack { Text("歌单").font(.largeTitle.bold()); Spacer(); Button { newPlaylistVisible = true } label: { Image(systemName: "plus") } }
                 List(selection: $state.selectedPlaylistID) { ForEach(state.playlists, id: \.id) { playlist in Text(playlist.name).tag(playlist.id) } }
                     .scrollContentBackground(.hidden).frame(minWidth: 190, maxWidth: 250)
-                    .padding(8).musicCard(cornerRadius: 18)
+                    .padding(8)
             }
             PlaylistDetail(state: state).frame(maxWidth: .infinity, maxHeight: .infinity).padding(12).musicCard(cornerRadius: 18)
         }.padding(34)
@@ -203,7 +203,7 @@ private struct EmptyState: View {
 private extension View {
     func musicCard(cornerRadius: CGFloat) -> some View {
         background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
-            .overlay(RoundedRectangle(cornerRadius: cornerRadius).stroke(playerDivider, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius).stroke(.primary.opacity(0.06), lineWidth: 1))
     }
 }
 
@@ -238,7 +238,7 @@ private struct MiniPlayer: View {
                 Slider(value: Binding(get: { state.volume }, set: { state.setVolume($0) }), in: 0...1).tint(playerRed)
             }
         }.padding(14).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(playerDivider, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(.primary.opacity(0.06), lineWidth: 1))
     }
 
     private var repeatIcon: String { switch state.repeatMode { case .off, .all: return "repeat"; case .one: return "repeat.1"; case .shuffle: return "shuffle" } }
@@ -281,7 +281,7 @@ private struct CircleControl: View {
 
 private struct QueuePanel: View {
     @ObservedObject var state: MusicAppState
-    var body: some View { VStack(alignment: .leading) { HStack { Text("待播队列").font(.headline); Spacer(); Button("清空") { state.clearQueue() }.controlSize(.small) }; List(state.pendingTracks, id: \.id) { track in HStack { VStack(alignment: .leading) { Text(track.title).lineLimit(1); Text(track.artist).font(.caption).foregroundStyle(.secondary) }; Spacer(); Button { state.removeFromQueue(track) } label: { Image(systemName: "minus.circle") }.buttonStyle(.borderless) } }.listStyle(.plain) }.padding(14).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14)) }
+    var body: some View { VStack(alignment: .leading) { HStack { Text("待播队列").font(.headline); Spacer(); Button("清空") { state.clearQueue() }.controlSize(.small) }; List(state.pendingTracks, id: \.id) { track in HStack { VStack(alignment: .leading) { Text(track.title).lineLimit(1); Text(track.artist).font(.caption).foregroundStyle(.secondary) }; Spacer(); Button { state.removeFromQueue(track) } label: { Image(systemName: "minus.circle") }.buttonStyle(.borderless) } }.listStyle(.plain) }.padding(14) }
 }
 
 private struct PlayerPage: View {
@@ -321,13 +321,12 @@ private struct PlayerPage: View {
             }
             HStack { Image(systemName: "speaker.wave.2").foregroundStyle(playerRed); Slider(value: Binding(get: { state.volume }, set: { state.setVolume($0) }), in: 0...1).tint(playerRed) }
             Spacer(minLength: 0)
-        }.padding(28).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(playerDivider, lineWidth: 1))
+        }.padding(28)
     }
 
     private var lyricsPanel: some View {
         VStack(spacing: 12) {
-            HStack { Text("歌词").font(.headline); Spacer(); Text("\(state.lyrics.count) 行").font(.caption).foregroundStyle(.secondary) }
+            // HStack { Text("歌词").font(.headline); Spacer(); Text("\(state.lyrics.count) 行").font(.caption).foregroundStyle(.secondary) }
             if state.lyrics.isEmpty {
                 Spacer()
                 VStack(spacing: 10) {
@@ -354,8 +353,7 @@ private struct PlayerPage: View {
                     }.onChange(of: activeLyric) { index in withAnimation { proxy.scrollTo(index, anchor: .center) } }
                 }
             }
-        }.padding(28).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(playerDivider, lineWidth: 1))
+        }.padding(28)
     }
     private var repeatIcon: String { switch state.repeatMode { case .off, .all: return "repeat"; case .one: return "repeat.1"; case .shuffle: return "shuffle" } }
 }
@@ -368,6 +366,33 @@ private struct ProgressSlider: View {
 private struct CoverArt: View {
     let track: Track?; let side: CGFloat
     var body: some View { Group { if let track, let data = ArtworkLoader.artworkData(for: track), let image = NSImage(data: data) { Image(nsImage: image).resizable().scaledToFill() } else { Image(systemName: "music.note").resizable().scaledToFit().padding(side * 0.25).foregroundStyle(playerRed) } }.frame(width: side, height: side).background(playerRed.opacity(0.12)).clipShape(RoundedRectangle(cornerRadius: max(8, side * 0.08))) }
+}
+
+private struct PlayerBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ZStack {
+            Color(nsColor: .windowBackgroundColor)
+
+            LinearGradient(
+                colors: colorScheme == .dark
+                    ? [
+                        Color.white.opacity(0.025),
+                        playerRed.opacity(0.035),
+                        Color.clear
+                    ]
+                    : [
+                        Color.black.opacity(0.025),
+                        playerRed.opacity(0.025),
+                        Color.clear
+                    ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+        .ignoresSafeArea()
+    }
 }
 
 private func time(_ seconds: Double) -> String {
